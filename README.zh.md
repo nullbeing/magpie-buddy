@@ -6,21 +6,8 @@
 
 硬件：**M5Stack CoreS3**（ESP32-S3，320×240，8 MB PSRAM，Wi-Fi）。
 
-```
-   ┌──────────────────────────────────────────┐
-   │ claude                kimi/kimi-k2.5     │   顶部：谁发起，谁应答
-   │                       group opus-anywhere│
-   │                                          │
-   │  ┌────┐      ┌────┐        ┌──────┐      │   舞台：agent → magpie → 账号
-   │  │ ●  │──────│ 🐦 │───────▶│  ●   │      │
-   │  │claude      magpie       kimi         │
-   │  └────┘      └────┘        └──────┘      │
-   │                                          │
-   │   ◜◝     今日用量       Claude 5h   62%  │   上下文弧、今日用量、订阅余量
-   │   24%    37 次调用     Codex 7d    18%   │
-   │   48k    1.2M token    Kimi 月     84%   │
-   └──────────────────────────────────────────┘
-```
+<img src="magpie-buddy.png" alt="Magpie Buddy 运行在 M5Stack CoreS3 上，显示 Route 页" width="620">
+
 
 ## 仓库里有什么
 

@@ -10,21 +10,8 @@ back and takes the request on to the next.
 
 Hardware: **M5Stack CoreS3** (ESP32-S3, 320×240, 8 MB PSRAM, Wi-Fi).
 
-```
-   ┌──────────────────────────────────────────┐
-   │ claude                kimi/kimi-k2.5     │   header: who asked, what answered
-   │                       group opus-anywhere│
-   │                                          │
-   │  ┌────┐      ┌────┐        ┌──────┐      │   the stage: agent → magpie → account
-   │  │ ●  │──────│ 🐦 │───────▶│  ●   │      │
-   │  │claude      magpie       kimi         │
-   │  └────┘      └────┘        └──────┘      │
-   │                                          │
-   │   ◜◝     today        Claude 5h   62%    │   context arc, today, allowances
-   │   24%    37 calls     Codex 7d    18%    │
-   │   48k    1.2M tok     Kimi 月     84%    │
-   └──────────────────────────────────────────┘
-```
+<img src="magpie-buddy.png" alt="Magpie Buddy on an M5Stack CoreS3, showing the Route page" width="620">
+
 
 ## What is here
 
