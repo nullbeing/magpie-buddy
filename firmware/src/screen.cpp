@@ -632,6 +632,13 @@ void Screen::set(const Frame& f) {
   painted_ = false;
 }
 
+void Screen::setup(const char* ap, const char* ip) {
+  snprintf(setupAp_, sizeof setupAp_, "%s", ap ? ap : "");
+  snprintf(setupIp_, sizeof setupIp_, "%s", ip ? ip : "");
+  setup_ = true;
+  painted_ = false;
+}
+
 void Screen::offline(bool down) {
   if (offline_ == down) return;
   offline_ = down;
@@ -712,6 +719,14 @@ void Screen::tick(uint32_t now) {
 // --------------------------------------------------------------- the slide
 
 void Screen::drawSlide(uint32_t now) {
+  // Being set up takes the whole panel: no tabs, because there are no pages to
+  // go to yet, and the one thing on the glass is the network to join.
+  if (setup_) {
+    paintSetup(stage_);
+    stage_.pushSprite(0, 0);
+    return;
+  }
+
   // the page on the glass, and — while it is moving — the one coming in
   stage_.fillScreen(kBg);
   paintPage(stage_, page_, now);
@@ -736,6 +751,19 @@ void Screen::drawSlide(uint32_t now) {
   tabs_.fillScreen(kBg);
   paintTabs(tabs_);
   tabs_.pushSprite(0, kTabY);
+}
+
+void Screen::paintSetup(M5Canvas& g) {
+  // Two facts and a fallback. The sheet a phone opens by itself is the real
+  // interface; this is what the person at the desk reads when it does not, so
+  // the network's name and the address are set large enough to copy by eye.
+  g.fillRect(0, 0, 320, 240, kBg);
+  ui::drawTop(g, UI_26, "Set up", 160, 30, kFg, ui::kCenter);
+  ui::drawTop(g, UI_14, "Join this Wi-Fi network", 160, 72, kFg3, ui::kCenter);
+  ui::drawTop(g, UI_18, setupAp_, 160, 94, kFg, ui::kCenter);
+  ui::drawTop(g, UI_14, "then open", 160, 130, kFg3, ui::kCenter);
+  ui::drawTop(g, UI_18, setupIp_, 160, 152, kFg, ui::kCenter);
+  ui::drawTop(g, UI_11, "2.4 GHz networks only", 160, 198, kFg3, ui::kCenter);
 }
 
 void Screen::paintOffline(M5Canvas& g) {

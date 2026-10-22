@@ -55,6 +55,11 @@ class Screen {
   // offline draws "magpie offline" over the page, or takes it away.
   void offline(bool down);
 
+  // setup puts the board's own access point on the glass: the name to join and
+  // the address to open. It takes the whole panel, tabs included — the pages
+  // have nothing to show until the board is on a network.
+  void setup(const char* ap, const char* ip);
+
   // The touch panel, as the three things a finger does.
   //
   // down starts a touch; move follows it, and a drag past the panel's own
@@ -96,6 +101,7 @@ class Screen {
   void paintLimits(M5Canvas& g);
   void paintFlight(M5Canvas& g, uint32_t now);
   void paintOffline(M5Canvas& g);
+  void paintSetup(M5Canvas& g);
 
   // drawSlide pushes the two pages at their offsets, the one leaving and the
   // one arriving.
@@ -148,6 +154,9 @@ class Screen {
   int playedTry_ = 0;
 
   bool offline_ = false;
+  bool setup_ = false;
+  char setupAp_[32] = {0};
+  char setupIp_[16] = {0};
   bool painted_ = false;
   int battery_ = -1;         // 0..100, -1 unknown
   bool charging_ = false;

@@ -33,6 +33,7 @@
 #endif
 
 #include "magpie.h"
+#include "provision.h"
 #include "screen.h"
 
 namespace {
@@ -55,7 +56,13 @@ constexpr uint32_t kOfflineAfter = 45000;
 
 const char* kProbe = "MAGPIE-DISPLAY?";
 
+// the setup portal lives in magpie::provision; the boot code below is global
+namespace provision = magpie::provision;
+
 WebServer http(kHttpPort);
+// set when the board is being set up: loop() then serves the portal and
+// nothing else, because there is no network to be on yet
+bool gProvisioning = false;
 WiFiUDP udp;
 magpie::Screen screen;
 
@@ -190,12 +197,25 @@ void setup() {
     Serial.println("the display's sprite didn't allocate: is PSRAM on?");
   }
   loadTheme();
+
+  // No network saved: the board has to be told one, so it raises its own access
+  // point and waits for a phone. This is the one step that used to need a
+  // rebuild, because the SSID and password were compiled in.
+  Serial.printf("boot: %s\n", provision::hasCredentials() ? "a network is saved" : "no network saved");
+  if (!provision::hasCredentials()) {
+    provision::begin();
+    screen.setup(provision::apName(), WiFi.softAPIP().toString().c_str());
+    gProvisioning = true;
+    Serial.println("setup: waiting for a network from the portal");
+    return;
+  }
+
   screen.offline(true);
 
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(kHostname);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.printf("wifi: joining %s", WIFI_SSID);
+  WiFi.begin(provision::ssid(), provision::pass());
+  Serial.printf("wifi: joining %s", provision::ssid());
   const uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
     delay(200);
@@ -234,6 +254,69 @@ void setup() {
 
 void loop() {
   M5.update();
+
+  // Two ways back into setup, because a board on a shelf cannot be reflashed.
+  //
+  // A finger held for three seconds forgets the network and starts over; that
+  // is the only gesture this panel has that is deliberately slow, so nothing
+  // else can trigger it by accident. And the same thing over the serial port,
+  // spelled "forget", which is how it is tested without a finger.
+  {
+    static uint32_t heldSince = 0;
+    static char line[32];
+    static size_t len = 0;
+    const uint32_t now0 = millis();
+    while (Serial.available()) {
+      const char c = Serial.read();
+      if (c == '\n' || c == '\r') {
+        line[len] = 0;
+        if (len && !strcmp(line, "forget")) {
+          provision::forget();
+          Serial.println("setup: restarting to be set up again");
+          delay(120);
+          ESP.restart();
+        }
+        // join <ssid> <password>: the same save the portal makes, over the
+        // cable. A board whose network is gone has no page to be reached on,
+        // and this is what brings it back without a phone.
+        if (len > 5 && !strncmp(line, "join ", 5)) {
+          char* sp = strchr(line + 5, ' ');
+          if (sp) {
+            *sp = 0;
+            provision::save(line + 5, sp + 1);
+            Serial.println("setup: saved over serial, restarting");
+            delay(120);
+            ESP.restart();
+          } else {
+            Serial.println("usage: join <ssid> <password>");
+          }
+        }
+        len = 0;
+      } else if (len < sizeof line - 1) {
+        line[len++] = c;
+      }
+    }
+    if (M5.Touch.getCount() > 0 && M5.Touch.getDetail(0).isPressed()) {
+      if (heldSince == 0) {
+        heldSince = now0;
+      } else if (now0 - heldSince > 3000) {
+        provision::forget();
+        Serial.println("setup: held three seconds, restarting to be set up");
+        delay(120);
+        ESP.restart();
+      }
+    } else {
+      heldSince = 0;
+    }
+  }
+
+  if (gProvisioning) {
+    // the portal takes the radio and the panel; it restarts the board itself
+    // once a network is saved
+    provision::tick();
+    delay(2);
+    return;
+  }
   http.handleClient();
   readAnswer();
 

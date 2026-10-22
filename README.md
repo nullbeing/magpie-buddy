@@ -66,13 +66,28 @@ Set a token if you want one, and give the board the same string.
 
 ```sh
 cd firmware
-cp include/config.example.h include/config.h   # then fill in Wi-Fi and the token
-pio run -t upload                              # over USB-C
-pio device monitor                             # 115200, the serial log
+pio run -t upload        # over USB-C
+pio device monitor       # 115200, the serial log
 ```
 
-`config.h` is gitignored: it holds the Wi-Fi password. Without it the firmware
-still builds, joins nothing, and says `magpie offline` on screen.
+Then set it up from a phone — no rebuild, no password in the source:
+
+1. The board raises an access point called **`Magpie-Buddy-XXXX`** (the last two
+   bytes of its chip id) and shows the name on its own screen.
+2. Join it. The setup page opens by itself; if it doesn't, go to
+   **`http://192.168.4.1`**.
+3. Pick your network, type the password, connect. The board saves it to NVS and
+   restarts onto your network.
+
+The network lives in NVS, so a power cut does not lose it, and moving the board
+to another house only means running setup again — **hold the screen for three
+seconds** to forget the saved network and bring the access point back.
+
+`config.h` is no longer needed. A board built with one still joins the network
+compiled into it, so an older build keeps working; leave the file out and the
+board provisions over the air instead. If you would rather not use a phone,
+`join <ssid> <password>` over the serial port does the same thing, and `forget`
+clears it.
 
 ### 3. Watch it
 
