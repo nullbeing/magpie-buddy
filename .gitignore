@@ -1,0 +1,15 @@
+# PlatformIO's build output and the libraries it downloads: both are made
+# again by `pio run`, and neither belongs in a checkout.
+firmware/.pio/
+
+# config.h holds the Wi-Fi password and the display's token. It is copied from
+# config.example.h and never committed; the firmware builds without it.
+firmware/include/config.h
+
+.DS_Store
+
+# The host renderer's build output and the pictures it makes: both come back
+# from `make -C tools/render`, and neither belongs in a checkout.
+tools/render/render*
+tools/render/out/
+tools/render/out-*/

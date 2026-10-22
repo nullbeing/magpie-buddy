@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The desk display bridge, kept running.
+
+  A board that stops receiving frames says "no frames" after 45 s — it has to,
+  because a display cannot tell a quiet magpie from a dead one on its own. So
+  the bridge is not something to start by hand: it runs from login, and launchd
+  starts it again if it exits.
+
+  Install — fill in the two placeholders first, then load it:
+
+    node --version && which node          # the path for __NODE_PATH__
+    pwd                                    # the folder holding magpie-display.mjs
+
+    sed -e "s#__NODE_PATH__#$(which node)#" \
+        -e "s#__BRIDGE_PATH__#$PWD/magpie-display.mjs#" \
+        ai.usemagpie.display.plist.example \
+        > ~/Library/LaunchAgents/ai.usemagpie.display.plist
+    launchctl load -w ~/Library/LaunchAgents/ai.usemagpie.display.plist
+
+  Stop:
+    launchctl unload -w ~/Library/LaunchAgents/ai.usemagpie.display.plist
+
+  The board says "no frames" within 45 s of the bridge stopping, which is what
+  it should do: a display cannot tell a quiet magpie from a dead one alone. That
+  is why this runs from login rather than being started by hand.
+
+  Log:
+    tail -f /tmp/magpie-display.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.usemagpie.display</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE_PATH__</string>
+    <string>__BRIDGE_PATH__</string>
+    <string>--discover</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- It is a display's pusher, not a one-shot: if it ever exits, it is
+       started again. ThrottleInterval keeps a crash loop from spinning. -->
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/magpie-display.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/magpie-display.log</string>
+
+  <!-- A PATH that finds node and the usual tools; launchd starts with almost
+       nothing. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>
