@@ -20,6 +20,8 @@ node bridge/magpie-display.mjs --discover
 
 **2. 固件** —— 一次性，走 USB-C：
 
+用 Chrome 或 Edge 打开 **[网页烧录器](https://nullbeing.github.io/magpie-buddy/flasher/)**，点 Connect。不需要装工具链。或者在本地：
+
 ```sh
 cd firmware
 pio run -t upload

@@ -23,6 +23,9 @@ already answers and pushes frames to the board.
 
 **2. The firmware** — once, over USB-C:
 
+Open **[the flasher](https://nullbeing.github.io/magpie-buddy/flasher/)** in
+Chrome or Edge and press Connect. No toolchain needed. From a checkout instead:
+
 ```sh
 cd firmware
 pio run -t upload

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Flash Magpie Buddy</title>
+<style>
+  :root {
+    --bg: #f4f4f6;
+    --card: #ffffff;
+    --line: #e3e3e8;
+    --fg: #1c1c21;
+    --fg2: #4b4b53;
+    --muted: #85858d;
+    --field: #f7f7f9;
+    --accent: #5b5bd6;
+    --accent-fg: #ffffff;
+    --warn: #b45309;
+    --warn-bg: #fbf0df;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0c0e;
+      --card: #15181c;
+      --line: #262b32;
+      --fg: #f0f2f5;
+      --fg2: #98a0ac;
+      --muted: #6b7480;
+      --field: #1e2228;
+      --accent: #8b86ff;
+      --accent-fg: #0b0c0e;
+      --warn: #f2b544;
+      --warn-bg: #3f3220;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 40px 18px 64px;
+  }
+  main { max-width: 460px; margin: 0 auto; }
+
+  .mark {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: var(--fg); color: var(--bg);
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 16px; letter-spacing: -.02em;
+    margin-bottom: 16px;
+  }
+  h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 8px; font-weight: 650; }
+  .lede { margin: 0 0 26px; color: var(--fg2); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .card + .card { margin-top: 12px; }
+
+  /* The button the library renders is a shadow-DOM button; it is sized and
+     coloured from here so it matches the rest of the page. */
+  /* The button lives in a shadow root with no exported parts, so the only
+     handle is the library's own custom properties — and their names are the
+     other way round from what they read like: `color` is the background and
+     `text-color` is the ink. */
+  esp-web-install-button {
+    display: block;
+    --esp-tools-button-color: var(--accent);
+    --esp-tools-button-text-color: var(--accent-fg);
+    --esp-tools-button-border-radius: 10px;
+  }
+
+  .unsupported { display: none; }
+  .unsupported p { margin: 0; color: var(--fg2); }
+  .unsupported .b { color: var(--fg); font-weight: 600; }
+  body.no-serial .unsupported { display: block; }
+  body.no-serial esp-web-install-button { display: none; }
+
+  .note {
+    margin: 14px 0 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--warn-bg);
+    color: var(--warn);
+    font-size: 13.5px;
+  }
+  .note.hidden { display: none; }
+
+  h2 {
+    font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 12px;
+  }
+  ol { margin: 0; padding-left: 20px; color: var(--fg2); }
+  ol li { margin-bottom: 8px; }
+  ol li:last-child { margin-bottom: 0; }
+  ol b { color: var(--fg); font-weight: 600; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+  .foot { margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .foot a { color: var(--fg2); }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">MB</div>
+  <h1>Flash Magpie Buddy</h1>
+  <p class="lede">Writes the firmware to an M5Stack CoreS3 over USB-C. It takes about a minute, and wipes whatever was on the board.</p>
+
+  <section class="card">
+    <div class="unsupported">
+      <p><span class="b">This browser cannot flash a board.</span></p>
+      <p style="margin-top:8px">Web Serial is only in Chrome and Edge on a desktop. On Safari, Firefox or a phone, use the command line instead:</p>
+      <p style="margin-top:10px"><code>pio run -t upload</code></p>
+    </div>
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+    <p class="note hidden" id="erase">Choose <b>“Erase device”</b> when it asks. The board keeps its Wi-Fi network in flash, and a stale one from another board is worse than none.</p>
+  </section>
+
+  <section class="card">
+    <h2>After flashing</h2>
+    <ol>
+      <li>The board restarts and raises an access point called <b>Magpie-Buddy-XXXX</b>, with the name on its screen.</li>
+      <li>Join it from your phone. The setup page opens by itself; if not, go to <code>192.168.4.1</code>.</li>
+      <li>Pick your network and enter the password. The board saves it and restarts onto your Wi-Fi.</li>
+      <li>Run the bridge on the machine with magpie: <code>node bridge/magpie-display.mjs --discover</code></li>
+    </ol>
+    <p class="note">The board finds the bridge by itself over the network, so nothing needs the board's address typed into it.</p>
+  </section>
+
+  <p class="foot">
+    <a href="https://github.com/nullbeing/magpie-buddy">Source and instructions on GitHub</a>
+  </p>
+</main>
+
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<script>
+  // No Web Serial means no flashing: say what to do instead rather than
+  // rendering a button that fails when pressed.
+  if (!('serial' in navigator)) document.body.classList.add('no-serial');
+  // The erase prompt only appears on a board that already has a firmware, so
+  // the advice is shown from the start and read when it matters.
+  document.getElementById('erase').classList.remove('hidden');
+</script>
+</body>
+</html>
