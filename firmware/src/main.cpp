@@ -175,8 +175,12 @@ void readAnswer() {
 Preferences gPrefs;
 
 void loadTheme() {
-  gPrefs.begin("magpie", false);
+  // Opened, read, closed. A handle left open on a namespace is what makes a
+  // later write to the same namespace fail, and provision.cpp writes there.
+  const bool ok = gPrefs.begin("magpie", false);
+  if (!ok) Serial.println("nvs: the theme namespace did not open");
   screen.setTheme(gPrefs.getBool("dark", true));
+  gPrefs.end();
 }
 
 void saveTheme() {
@@ -196,6 +200,9 @@ void setup() {
   if (!screen.begin()) {
     Serial.println("the display's sprite didn't allocate: is PSRAM on?");
   }
+  // 3 s, and only a finger that stayed down: M5Unified times it, so a tap
+  // cannot be mistaken for a hold.
+  M5.Touch.setHoldThresh(3000);
   loadTheme();
 
   // No network saved: the board has to be told one, so it raises its own access
@@ -262,15 +269,24 @@ void loop() {
 
   // Two ways back into setup, because a board on a shelf cannot be reflashed.
   //
-  // A finger held for three seconds forgets the network and starts over; that
-  // is the only gesture this panel has that is deliberately slow, so nothing
-  // else can trigger it by accident. And the same thing over the serial port,
-  // spelled "forget", which is how it is tested without a finger.
+  // The gesture is a hold, and M5Unified already times holds: setHoldThresh
+  // below makes wasHold() fire once, 3 s after a finger lands, and it counts
+  // only a finger that stayed down. A hand-rolled timer here read "now minus
+  // when I first saw a finger" instead, so a touch that arrived while loop()
+  // was blocked — during the join at boot — measured against a stale start and
+  // wiped the network on a single tap.
+  if (M5.Touch.getDetail(0).wasHold()) {
+    provision::forget();
+    Serial.println("setup: held three seconds, restarting to be set up");
+    delay(120);
+    ESP.restart();
+  }
+
+  // And the same over the serial port, which is how it is tested without a
+  // finger, and how a board whose network is gone is brought back.
   {
-    static uint32_t heldSince = 0;
-    static char line[32];
+    static char line[64];
     static size_t len = 0;
-    const uint32_t now0 = millis();
     while (Serial.available()) {
       const char c = Serial.read();
       if (c == '\n' || c == '\r') {
@@ -281,6 +297,7 @@ void loop() {
           delay(120);
           ESP.restart();
         }
+        if (len && !strcmp(line, "status")) provision::dump();
         // join <ssid> <password>: the same save the portal makes, over the
         // cable. A board whose network is gone has no page to be reached on,
         // and this is what brings it back without a phone.
@@ -300,18 +317,6 @@ void loop() {
       } else if (len < sizeof line - 1) {
         line[len++] = c;
       }
-    }
-    if (M5.Touch.getCount() > 0 && M5.Touch.getDetail(0).isPressed()) {
-      if (heldSince == 0) {
-        heldSince = now0;
-      } else if (now0 - heldSince > 3000) {
-        provision::forget();
-        Serial.println("setup: held three seconds, restarting to be set up");
-        delay(120);
-        ESP.restart();
-      }
-    } else {
-      heldSince = 0;
     }
   }
 

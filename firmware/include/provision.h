@@ -27,6 +27,9 @@ void save(const char* ssid, const char* pass);
 // forget clears the saved network, so the next boot provisions again.
 void forget();
 
+// dump prints what NVS holds, without the password itself.
+void dump();
+
 // apName is the access point this board raises while it is being set up.
 const char* apName();
 

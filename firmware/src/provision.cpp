@@ -118,6 +118,16 @@ void handleSave() {
 
 }  // namespace
 
+void dump() {
+  const bool ok = prefs.begin(kNvs, true);
+  const String s = ok ? prefs.getString(kKeySsid, "") : String("");
+  const String p = ok ? prefs.getString(kKeyPass, "") : String("");
+  const bool f = ok ? prefs.getBool(kKeyForgotten, false) : false;
+  prefs.end();
+  Serial.printf("setup: open=%d ssid=\"%s\" pass=%u chars forgotten=%d\n", int(ok),
+                s.c_str(), unsigned(p.length()), int(f));
+}
+
 bool hasCredentials() {
   prefs.begin(kNvs, true);
   const bool forgotten = prefs.getBool(kKeyForgotten, false);
@@ -164,12 +174,13 @@ const char* pass() {
 }
 
 void save(const char* ssid, const char* pass) {
-  Serial.printf("setup: saving %s\n", ssid);
-  prefs.begin(kNvs, false);
-  prefs.putString(kKeySsid, ssid);
-  prefs.putString(kKeyPass, pass);
-  prefs.remove(kKeyForgotten);
+  const bool ok = prefs.begin(kNvs, false);
+  const size_t a = ok ? prefs.putString(kKeySsid, ssid) : 0;
+  const size_t b = ok ? prefs.putString(kKeyPass, pass) : 0;
+  if (ok) prefs.remove(kKeyForgotten);
   prefs.end();
+  Serial.printf("setup: saving %s open=%d wrote ssid=%u pass=%u\n", ssid, int(ok),
+                unsigned(a), unsigned(b));
 }
 
 void forget() {
