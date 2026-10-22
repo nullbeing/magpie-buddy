@@ -635,7 +635,19 @@ void Screen::set(const Frame& f) {
 void Screen::setup(const char* ap, const char* ip) {
   snprintf(setupAp_, sizeof setupAp_, "%s", ap ? ap : "");
   snprintf(setupIp_, sizeof setupIp_, "%s", ip ? ip : "");
-  setup_ = true;
+  setup_ = Setup::kWaiting;
+  painted_ = false;
+}
+
+void Screen::setupFailed(const char* ssid) {
+  snprintf(setupSsid_, sizeof setupSsid_, "%s", ssid ? ssid : "");
+  setup_ = Setup::kFailed;
+  painted_ = false;
+}
+
+void Screen::setupDone() {
+  if (setup_ == Setup::kOff) return;
+  setup_ = Setup::kOff;
   painted_ = false;
 }
 
@@ -721,7 +733,7 @@ void Screen::tick(uint32_t now) {
 void Screen::drawSlide(uint32_t now) {
   // Being set up takes the whole panel: no tabs, because there are no pages to
   // go to yet, and the one thing on the glass is the network to join.
-  if (setup_) {
+  if (setup_ != Setup::kOff) {
     paintSetup(stage_);
     stage_.pushSprite(0, 0);
     return;
@@ -754,15 +766,38 @@ void Screen::drawSlide(uint32_t now) {
 }
 
 void Screen::paintSetup(M5Canvas& g) {
-  // Two facts and a fallback. The sheet a phone opens by itself is the real
-  // interface; this is what the person at the desk reads when it does not, so
-  // the network's name and the address are set large enough to copy by eye.
+  // The board's own page, in the same language as the three behind it: one
+  // card on the ground, a hairline instead of a border, and type carrying the
+  // hierarchy. What it holds is the two facts a person at the desk needs — and,
+  // when a network was given and did not take, what to do about it.
+  const bool failed = setup_ == Setup::kFailed;
+  char buf[64];
+
   g.fillRect(0, 0, 320, 240, kBg);
-  ui::drawTop(g, UI_26, "Set up", 160, 30, kFg, ui::kCenter);
-  ui::drawTop(g, UI_14, "Join this Wi-Fi network", 160, 72, kFg3, ui::kCenter);
-  ui::drawTop(g, UI_18, setupAp_, 160, 94, kFg, ui::kCenter);
-  ui::drawTop(g, UI_14, "then open", 160, 130, kFg3, ui::kCenter);
-  ui::drawTop(g, UI_18, setupIp_, 160, 152, kFg, ui::kCenter);
+  ui::drawTop(g, UI_26, failed ? "Not connected" : "Set up", 160, 34,
+              failed ? kDanger : kFg, ui::kCenter);
+
+  const int cardY = 74, cardH = 112;
+  g.fillRoundRect(16, cardY, 288, cardH, 14, kSurface);
+  g.drawRoundRect(16, cardY, 288, cardH, 14, kHairline);
+
+  if (failed) {
+    ui::drawTop(g, UI_11, "could not join", 160, cardY + 10, kFg3, ui::kCenter);
+    fit(buf, sizeof buf, UI_18, setupSsid_, 264);
+    ui::drawTop(g, UI_18, buf, 160, cardY + 26, kFg, ui::kCenter);
+    g.fillRect(32, cardY + 58, 256, 1, kHairline);
+    ui::drawTop(g, UI_14, "Hold the screen 3 seconds", 160, cardY + 66, kFg2, ui::kCenter);
+    ui::drawTop(g, UI_14, "to set it up again", 160, cardY + 84, kFg2, ui::kCenter);
+  } else {
+    ui::drawTop(g, UI_11, "join this Wi-Fi network", 160, cardY + 10, kFg3, ui::kCenter);
+    fit(buf, sizeof buf, UI_18, setupAp_, 264);
+    ui::drawTop(g, UI_18, buf, 160, cardY + 26, kFg, ui::kCenter);
+    g.fillRect(32, cardY + 58, 256, 1, kHairline);
+    ui::drawTop(g, UI_11, "then open", 160, cardY + 66, kFg3, ui::kCenter);
+    ui::drawTop(g, UI_18, setupIp_, 160, cardY + 82, kFg, ui::kCenter);
+  }
+
+  // The one failure everybody hits and nobody is told about.
   ui::drawTop(g, UI_11, "2.4 GHz networks only", 160, 198, kFg3, ui::kCenter);
 }
 

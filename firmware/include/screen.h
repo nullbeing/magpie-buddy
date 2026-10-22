@@ -60,6 +60,14 @@ class Screen {
   // have nothing to show until the board is on a network.
   void setup(const char* ap, const char* ip);
 
+  // setupFailed says the network it was given did not take. Without it a board
+  // with a mistyped password says "magpie offline" for ever, which looks like
+  // magpie's fault and tells nobody what to do next.
+  void setupFailed(const char* ssid);
+
+  // setupDone takes either of those away, once the board is on a network.
+  void setupDone();
+
   // The touch panel, as the three things a finger does.
   //
   // down starts a touch; move follows it, and a drag past the panel's own
@@ -154,9 +162,11 @@ class Screen {
   int playedTry_ = 0;
 
   bool offline_ = false;
-  bool setup_ = false;
+  enum class Setup : uint8_t { kOff, kWaiting, kFailed };
+  Setup setup_ = Setup::kOff;
   char setupAp_[32] = {0};
   char setupIp_[16] = {0};
+  char setupSsid_[33] = {0};
   bool painted_ = false;
   int battery_ = -1;         // 0..100, -1 unknown
   bool charging_ = false;

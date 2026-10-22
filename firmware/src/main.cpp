@@ -236,6 +236,11 @@ void setup() {
     // reconnects too, so a dropped link doesn't quietly start napping.
     WiFi.setSleep(false);
   } else {
+    // A network was given and did not take. Say which one and what to do about
+    // it: "magpie offline" is what this used to show, which looks like magpie's
+    // fault and tells nobody that a password was mistyped.
+    Serial.printf("wifi: %s did not take\n", provision::ssid());
+    screen.setupFailed(provision::ssid());
     // no network is not a crash: the screen says so and keeps trying, because
     // a board on a desk is often plugged in before the router is up
     Serial.println("wifi: not joined yet, retrying in the background");
@@ -336,6 +341,7 @@ void loop() {
   // once it has been on.
   static uint32_t nextTry = 0, wait = 5000;
   if (WiFi.status() == WL_CONNECTED) {
+    screen.setupDone();  // a network that arrived late still counts
     if (wait != 5000) {
       // it has just come back from a drop: keep the radio awake, as at boot
       WiFi.setSleep(false);
