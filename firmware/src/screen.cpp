@@ -736,6 +736,13 @@ void Screen::drawSlide(uint32_t now) {
   if (setup_ != Setup::kOff) {
     paintSetup(stage_);
     stage_.pushSprite(0, 0);
+    // Said once: a page that draws and a page that does not look identical from
+    // the outside, and this one was not being drawn at all for a while.
+    static bool said = false;
+    if (!said) {
+      said = true;
+      Serial.println("setup: page drawn");
+    }
     return;
   }
 
