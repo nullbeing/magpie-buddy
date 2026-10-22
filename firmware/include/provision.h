@@ -24,7 +24,17 @@ const char* pass();
 // `join` command, which is how a board with no page to be reached on recovers.
 void save(const char* ssid, const char* pass);
 
-// forget clears the saved network, so the next boot provisions again.
+// requestSetup asks the next boot to come up in setup mode, keeping the saved
+// network. That is what the three-second hold does: looking at the setup page
+// should not cost you the network you already had.
+void requestSetup();
+
+// takeSetupRequest reads that request and clears it, so it is acted on once:
+// a board that was power-cycled while in setup comes back to its pages.
+bool takeSetupRequest();
+
+// forget clears the saved network, so the next boot provisions again. Only the
+// serial command does this; the gesture does not.
 void forget();
 
 // dump prints what NVS holds, without the password itself.

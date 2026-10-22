@@ -58,7 +58,9 @@ class Screen {
   // setup puts the board's own access point on the glass: the name to join and
   // the address to open. It takes the whole panel, tabs included — the pages
   // have nothing to show until the board is on a network.
-  void setup(const char* ap, const char* ip);
+  // canLeave says there is a saved network to go back to, which is what makes
+  // the page's footer offer a tap instead of a warning about 2.4 GHz.
+  void setup(const char* ap, const char* ip, bool canLeave);
 
   // setupFailed says the network it was given did not take. Without it a board
   // with a mistyped password says "magpie offline" for ever, which looks like
@@ -167,6 +169,7 @@ class Screen {
   char setupAp_[32] = {0};
   char setupIp_[16] = {0};
   char setupSsid_[33] = {0};
+  bool setupCanLeave_ = false;
   bool painted_ = false;
   int battery_ = -1;         // 0..100, -1 unknown
   bool charging_ = false;

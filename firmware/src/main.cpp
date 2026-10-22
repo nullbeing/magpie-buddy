@@ -63,6 +63,9 @@ WebServer http(kHttpPort);
 // set when the board is being set up: loop() then serves the portal and
 // nothing else, because there is no network to be on yet
 bool gProvisioning = false;
+// set when there is a saved network behind the setup page, which is what makes
+// a tap leave it rather than being swallowed
+bool gSetupCanLeave = false;
 WiFiUDP udp;
 magpie::Screen screen;
 
@@ -208,11 +211,18 @@ void setup() {
   // No network saved: the board has to be told one, so it raises its own access
   // point and waits for a phone. This is the one step that used to need a
   // rebuild, because the SSID and password were compiled in.
-  Serial.printf("boot: %s\n", provision::hasCredentials() ? "a network is saved" : "no network saved");
-  if (!provision::hasCredentials()) {
+  const bool saved = provision::hasCredentials();
+  // A hold asks for the setup page; a board with nothing saved has no choice.
+  // The request is taken (and cleared) here, so a board that was power-cycled
+  // while it was in setup comes back to its pages rather than staying there.
+  const bool asked = provision::takeSetupRequest();
+  Serial.printf("boot: %s%s\n", saved ? "a network is saved" : "no network saved",
+                asked ? ", setup was asked for" : "");
+  if (asked || !saved) {
     provision::begin();
-    screen.setup(provision::apName(), WiFi.softAPIP().toString().c_str());
+    screen.setup(provision::apName(), WiFi.softAPIP().toString().c_str(), saved);
     gProvisioning = true;
+    gSetupCanLeave = saved;
     Serial.println("setup: waiting for a network from the portal");
     return;
   }
@@ -276,8 +286,10 @@ void loop() {
   // was blocked — during the join at boot — measured against a stale start and
   // wiped the network on a single tap.
   if (M5.Touch.getDetail(0).wasHold()) {
-    provision::forget();
-    Serial.println("setup: held three seconds, restarting to be set up");
+    // Asking for setup, not forgetting: the network stays saved, so the page
+    // can be looked at and left again. Only the serial `forget` throws it away.
+    provision::requestSetup();
+    Serial.println("setup: held three seconds, restarting into setup");
     delay(120);
     ESP.restart();
   }
@@ -328,7 +340,21 @@ void loop() {
     // network was forgotten, so the access point was up and the screen said
     // nothing about it.
     provision::tick();
+    // A tap leaves the page when there is a saved network behind it. Without
+    // one the only way on is a phone, and the footer says so instead.
+    if (gSetupCanLeave && M5.Touch.getDetail(0).wasClicked()) {
+      Serial.println("setup: leaving setup, the saved network stands");
+      delay(120);
+      ESP.restart();
+    }
     screen.tick(millis());
+    // Said once: a page that draws and a page that does not look identical from
+    // outside the board, and this one was not being drawn at all for a while.
+    static bool saidDrawn = false;
+    if (!saidDrawn) {
+      saidDrawn = true;
+      Serial.println("setup: page drawn");
+    }
     delay(2);
     return;
   }

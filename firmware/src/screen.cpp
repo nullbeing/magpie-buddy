@@ -632,9 +632,10 @@ void Screen::set(const Frame& f) {
   painted_ = false;
 }
 
-void Screen::setup(const char* ap, const char* ip) {
+void Screen::setup(const char* ap, const char* ip, bool canLeave) {
   snprintf(setupAp_, sizeof setupAp_, "%s", ap ? ap : "");
   snprintf(setupIp_, sizeof setupIp_, "%s", ip ? ip : "");
+  setupCanLeave_ = canLeave;
   setup_ = Setup::kWaiting;
   painted_ = false;
 }
@@ -736,13 +737,6 @@ void Screen::drawSlide(uint32_t now) {
   if (setup_ != Setup::kOff) {
     paintSetup(stage_);
     stage_.pushSprite(0, 0);
-    // Said once: a page that draws and a page that does not look identical from
-    // the outside, and this one was not being drawn at all for a while.
-    static bool said = false;
-    if (!said) {
-      said = true;
-      Serial.println("setup: page drawn");
-    }
     return;
   }
 
@@ -804,8 +798,15 @@ void Screen::paintSetup(M5Canvas& g) {
     ui::drawTop(g, UI_18, setupIp_, 160, cardY + 82, kFg, ui::kCenter);
   }
 
-  // The one failure everybody hits and nobody is told about.
-  ui::drawTop(g, UI_11, "2.4 GHz networks only", 160, 198, kFg3, ui::kCenter);
+  // The footer says what the next move is. With a network already saved that is
+  // a tap back to the pages; without one the only way on is the phone, and then
+  // the thing worth saying is the failure everybody hits and nobody is told
+  // about.
+  if (setupCanLeave_) {
+    ui::drawTop(g, UI_11, "tap anywhere to go back", 160, 198, kFg2, ui::kCenter);
+  } else {
+    ui::drawTop(g, UI_11, "2.4 GHz networks only", 160, 198, kFg3, ui::kCenter);
+  }
 }
 
 void Screen::paintOffline(M5Canvas& g) {

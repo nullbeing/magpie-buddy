@@ -36,6 +36,9 @@ constexpr const char* kKeyPass = "wifi_pass";
 // Set when the user asks the board to forget: it suppresses the network
 // compiled in from config.h too, which a plain "no keys saved" cannot.
 constexpr const char* kKeyForgotten = "wifi_forgot";
+// Set by the hold, read once at boot: come up in setup without losing the
+// network that is already saved.
+constexpr const char* kKeySetup = "wifi_setup";
 
 constexpr uint16_t kPortalPort = 80;
 constexpr uint8_t kMaxNetworks = 24;
@@ -181,6 +184,21 @@ void save(const char* ssid, const char* pass) {
   prefs.end();
   Serial.printf("setup: saving %s open=%d wrote ssid=%u pass=%u\n", ssid, int(ok),
                 unsigned(a), unsigned(b));
+}
+
+void requestSetup() {
+  prefs.begin(kNvs, false);
+  prefs.putBool(kKeySetup, true);
+  prefs.end();
+  Serial.println("setup: the next boot comes up in setup");
+}
+
+bool takeSetupRequest() {
+  prefs.begin(kNvs, false);
+  const bool asked = prefs.getBool(kKeySetup, false);
+  if (asked) prefs.remove(kKeySetup);
+  prefs.end();
+  return asked;
 }
 
 void forget() {
