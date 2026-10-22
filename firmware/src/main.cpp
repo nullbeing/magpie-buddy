@@ -310,6 +310,14 @@ void loop() {
           ESP.restart();
         }
         if (len && !strcmp(line, "status")) provision::dump();
+        // setup: what the three-second hold does, without a finger. It is the
+        // same call, so it is how that path is tested.
+        if (len && !strcmp(line, "setup")) {
+          provision::requestSetup();
+          Serial.println("setup: restarting into setup");
+          delay(120);
+          ESP.restart();
+        }
         // join <ssid> <password>: the same save the portal makes, over the
         // cable. A board whose network is gone has no page to be reached on,
         // and this is what brings it back without a phone.
