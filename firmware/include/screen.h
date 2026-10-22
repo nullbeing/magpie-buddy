@@ -80,6 +80,11 @@ class Screen {
   void touchMove(int x);
   void touchUp(int x, int y);
 
+  // redraw marks everything for drawing again: the page and the strip. A strip
+  // that is pushed once and left alone is right on a panel, which keeps it, but
+  // a renderer that rebuilds its picture every frame needs telling.
+  void redraw();
+
   void showPage(Page p);
   Page page() const { return page_; }
   const Frame& frame() const { return f_; }
@@ -163,6 +168,11 @@ class Screen {
   int64_t playedRoute_ = 0;  // the route id last started, so a redraw isn't a replay
   int playedTry_ = 0;
 
+  // The tab strip is its own sprite over a page that never reaches it, so it
+  // only needs drawing when it actually changes. Repainting it every frame is
+  // what made it flicker while a flight was on: the page push blanked the row
+  // first, and the strip came back a frame later.
+  bool tabsDirty_ = true;
   bool offline_ = false;
   enum class Setup : uint8_t { kOff, kWaiting, kFailed };
   Setup setup_ = Setup::kOff;

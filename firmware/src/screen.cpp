@@ -522,12 +522,15 @@ bool Screen::begin() {
   M5.Display.fillScreen(kBg);  // and again on a theme change, from setTheme
   stage_.setPsram(true);
   stage_.setColorDepth(16);
-  if (!stage_.createSprite(320, 240)) return false;
+  // A page buffer is 204 tall, not 240: a page never draws over the tab strip,
+  // and a buffer that stopped at the strip could not blank it while being
+  // pushed. This is the whole of the flicker fix.
+  if (!stage_.createSprite(320, kPageH)) return false;
   // the page a swipe brings in: a second buffer, also in PSRAM. Without it a
   // swipe could only show one page, which is not a swipe.
   stage2_.setPsram(true);
   stage2_.setColorDepth(16);
-  stage2_.createSprite(320, 240);  // a board without it still draws, unslid
+  stage2_.createSprite(320, kPageH);  // a board without it still draws, unslid
   tabs_.setPsram(true);
   tabs_.setColorDepth(16);
   tabs_.createSprite(320, kTabH);
@@ -535,9 +538,15 @@ bool Screen::begin() {
   return true;
 }
 
+void Screen::redraw() {
+  painted_ = false;
+  tabsDirty_ = true;
+}
+
 void Screen::showPage(Page p) {
   if (page_ == p) return;
   page_ = p;
+  tabsDirty_ = true;
   offset_ = 0;
   animating_ = false;
   swiping_ = false;
@@ -710,6 +719,7 @@ void Screen::tick(uint32_t now) {
         // it landed: the incoming page is the page, and the offset is nothing
         page_ = incoming_;
         offset_ = 0;
+        tabsDirty_ = true;  // the underline moves to the page that arrived
       }
       animTo_ = 0;
     }
@@ -737,6 +747,10 @@ void Screen::drawSlide(uint32_t now) {
   if (setup_ != Setup::kOff) {
     paintSetup(stage_);
     stage_.pushSprite(0, 0);
+    // no tabs while being set up: there are no pages to go to yet, and the
+    // strip is outside the page buffer, so it has to be blanked on purpose
+    tabs_.fillScreen(kBg);
+    tabs_.pushSprite(0, kTabY);
     return;
   }
 
@@ -759,11 +773,15 @@ void Screen::drawSlide(uint32_t now) {
     stage_.pushSprite(int(offset_), 0);
   }
 
-  // the strip is pushed last, over both pages: it is the one thing that does
-  // not move, so the reader keeps their place while the pages go by
-  tabs_.fillScreen(kBg);
-  paintTabs(tabs_);
-  tabs_.pushSprite(0, kTabY);
+  // The strip is the one thing that does not move, so it is pushed once and
+  // left alone: the pages stop at kPageH and cannot disturb it. Repainting it
+  // every frame is what used to make it flicker during a flight.
+  if (tabsDirty_) {
+    tabs_.fillScreen(kBg);
+    paintTabs(tabs_);
+    tabs_.pushSprite(0, kTabY);
+    tabsDirty_ = false;
+  }
 }
 
 void Screen::paintSetup(M5Canvas& g) {
@@ -774,7 +792,7 @@ void Screen::paintSetup(M5Canvas& g) {
   const bool failed = setup_ == Setup::kFailed;
   char buf[64];
 
-  g.fillRect(0, 0, 320, 240, kBg);
+  g.fillRect(0, 0, 320, kPageH, kBg);
   ui::drawTop(g, UI_26, failed ? "Not connected" : "Set up", 160, 34,
               failed ? kDanger : kFg, ui::kCenter);
 
@@ -803,9 +821,9 @@ void Screen::paintSetup(M5Canvas& g) {
   // the thing worth saying is the failure everybody hits and nobody is told
   // about.
   if (setupCanLeave_) {
-    ui::drawTop(g, UI_11, "tap anywhere to go back", 160, 198, kFg2, ui::kCenter);
+    ui::drawTop(g, UI_11, "tap anywhere to go back", 160, 190, kFg2, ui::kCenter);
   } else {
-    ui::drawTop(g, UI_11, "2.4 GHz networks only", 160, 198, kFg3, ui::kCenter);
+    ui::drawTop(g, UI_11, "2.4 GHz networks only", 160, 190, kFg3, ui::kCenter);
   }
 }
 
@@ -875,6 +893,7 @@ void Screen::setTheme(bool dark) {
   gPal = dark ? kPaletteDark : kPaletteLight;
   dark_ = dark;
   themeDirty_ = true;
+  tabsDirty_ = true;  // the strip is drawn in the palette too
   painted_ = false;
 }
 
