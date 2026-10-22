@@ -321,9 +321,14 @@ void loop() {
   }
 
   if (gProvisioning) {
-    // the portal takes the radio and the panel; it restarts the board itself
-    // once a network is saved
+    // The portal takes the radio; the panel is still this program's to draw.
+    // It has to be ticked here, not skipped: the setup page is a page like any
+    // other, and screen.setup() only marks it dirty — the drawing happens in
+    // tick(). Returning before it left the panel on whatever was on it when the
+    // network was forgotten, so the access point was up and the screen said
+    // nothing about it.
     provision::tick();
+    screen.tick(millis());
     delay(2);
     return;
   }
