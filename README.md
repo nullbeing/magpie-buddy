@@ -1,5 +1,7 @@
 # Magpie Buddy
 
+**English** · [简体中文](README.zh.md)
+
 A small screen on the desk that shows what magpie is doing right now: which
 agent asked, which account answered, how full the context window is, and what
 is left on each allowance. When a request goes out, a magpie flies from the
@@ -81,7 +83,9 @@ Then set it up from a phone — no rebuild, no password in the source:
 
 The network lives in NVS, so a power cut does not lose it, and moving the board
 to another house only means running setup again — **hold the screen for three
-seconds** to forget the saved network and bring the access point back.
+seconds** to bring the access point back. The saved network is kept while you
+look: a tap on the setup page returns to the pages, and only the serial `forget`
+throws the network away.
 
 `config.h` is no longer needed. A board built with one still joins the network
 compiled into it, so an older build keeps working; leave the file out and the
@@ -121,8 +125,8 @@ make -C tools/render                  # every state, into tools/render/out/
 make -C tools/render one STATE=route  # just one
 ```
 
-The states are `offline`, `route`, `context`, `usage`, `failover`, `tight`,
-`flying` and `failed`.
+The states are `offline`, `route`, `context`, `usage`, `limits`, `failover`,
+`tight`, `flying`, `failed`, and the board's own `setup` and `setup-failed`.
 
 **The text is the board's own.** M5GFX's fonts are 1-bit — a glyph is a mask of
 on-or-off pixels, so every curve is a staircase, and that is why text on a board
