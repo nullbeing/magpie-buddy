@@ -291,8 +291,13 @@ void ring(M5Canvas& g, int cx, int cy, int r, uint16_t colour, int a) {
 // ---------------------------------------------------------------- the stage
 
 constexpr int kPageH = 204;  // what a page may draw in
-constexpr int kTabY = 205;   // where the tab strip starts on the panel
-constexpr int kTabH = 240 - kTabY;  // its height: 35
+// The strip starts where the page ends, not one row below it. With kTabY at 205
+// row 204 belonged to neither canvas: the page stopped at 203 and the strip
+// began at 205, so that row kept whatever was on the panel when it was last
+// written. A page repaints every frame while a bird is in the air; that row did
+// not, and showed as a line flickering along the top of the tab bar.
+constexpr int kTabY = kPageH;  // where the tab strip starts on the panel
+constexpr int kTabH = 240 - kTabY;  // its height: 36
 // Three page cells and a control: 96 each leaves the last 32 for the theme.
 constexpr int kTabW = 72;   // four page cells
 constexpr int kThemeX = 288;
@@ -857,17 +862,17 @@ void Screen::paintTabs(M5Canvas& g) {
   for (int i = 0; i < 4; i++) {
     const bool on = static_cast<int>(page_) == i;
     const int cx = kTabW * i + kTabW / 2;
-    ui::draw(g, UI_14, kNames[i], cx, 21, on ? kFg : kFg3, ui::kCenter);
+    ui::draw(g, UI_14, kNames[i], cx, 22, on ? kFg : kFg3, ui::kCenter);
     if (on) {
       const int tw = ui::width(UI_14, kNames[i]);
-      g.fillRect(cx - tw / 2, 30, tw, 2, kFg);
+      g.fillRect(cx - tw / 2, 31, tw, 2, kFg);
     }
   }
 
   // The theme control, at the bar's right end where it costs the pages nothing.
   // The glyph is what a tap gets you, not where you are: a sun while the theme
   // is dark, a moon while it is light.
-  const int cx = kThemeX + (320 - kThemeX) / 2, cy = 17;
+  const int cx = kThemeX + (320 - kThemeX) / 2, cy = 18;
   if (gPal.isDark) {
     g.fillCircle(cx, cy, 4, kFg3);
     for (int i = 0; i < 8; i++) {
