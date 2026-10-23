@@ -110,10 +110,10 @@ class Screen {
   const char* backlightName() const;
 
   // noteActivity restarts the idle clock. fromFrame is how a frame differs from
-  // a finger: a finger wants the screen at full, while a request arriving at a
-  // dark screen wants it only just visible — a 320x240 panel going from black
-  // to full at 3 a.m. is a flashlight, and the strip has already said something
-  // happened.
+  // a finger: a finger means someone is at the desk and wants the screen at
+  // full, while a request is only news and may never lift the panel above dim —
+  // a 320x240 screen going from black to full at 3 a.m. is a flashlight, and
+  // the strip has already said what happened.
   void noteActivity(bool fromFrame = false);
 
   // wokeGesture is true while the finger that woke a blank screen is still
@@ -229,10 +229,20 @@ class Screen {
   bool dark_ = true;         // the theme on the glass
   bool themeDirty_ = false;  // a tap changed it, and the caller should save it
 
-  // the backlight's own clock
+  // The backlight's own clock, as two of them.
+  //
+  // personAt_ is the last time someone was here: a finger, a page, a theme. Only
+  // that clock can ask for full brightness.
+  //
+  // newsAt_ is the last time something happened worth seeing: a new route, a
+  // flight. It can hold the panel at dim and bring it back from blank, and it
+  // can never lift it above dim. Keeping the two apart is what stops a request
+  // arriving while the screen is dimmed from snapping it to full — one clock
+  // could not say "a person was here ten minutes ago, and since then only
+  // news", which is the whole distinction.
   Backlight back_ = Backlight::kOn;
-  Backlight wakeLevel_ = Backlight::kOn;  // what "recently active" looks like
-  uint32_t activeAt_ = 0;    // the last thing that counted as activity
+  uint32_t personAt_ = 0;
+  uint32_t newsAt_ = 0;
   uint32_t backHold_ = 0;    // until this, a serial command owns the level
   Backlight held_ = Backlight::kOn;
   bool wokeGesture_ = false;

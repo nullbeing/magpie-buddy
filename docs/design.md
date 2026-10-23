@@ -150,32 +150,45 @@ scan           # re-read the internal bus, for a body plugged in after boot
 
 ## The backlight
 
-Three levels, and a clock that is the screen's own:
+Three levels, on two clocks that the screen keeps itself:
 
-| Level | Brightness | Reached after |
+| Level | Brightness | Reached when |
 | --- | --- | --- |
-| on | 128 | activity |
-| dim | 48 | 90 s idle |
-| blank | 0 | 15 min idle |
+| on | 128 | a person was here in the last 90 s |
+| dim | 48 | they were here within 15 min, or something just happened |
+| blank | 0 | neither |
 
-**The idle clock cannot count frames.** magpie sends a heartbeat every 15 s, so
-"how long since a frame" is always nought and a screen waiting on it would never
+**Two clocks, not one.** `personAt_` is the last time someone was here — a
+finger, a page change, a theme change, being in setup — and only that clock can
+ask for full brightness. `newsAt_` is the last time something happened worth
+seeing — a new route, a flight — and it can hold the panel at dim and bring it
+back from blank, but never lift it above dim.
+
+One clock cannot express the state that matters here: "a person was here ten
+minutes ago, and since then only news". With one clock, a request arriving while
+the screen was dimmed snapped it straight to full — the flashlight this was
+meant to avoid. Two clocks make the rule fall out instead of being special-cased.
+
+**The clocks cannot count frames.** magpie sends a heartbeat every 15 s, so "how
+long since a frame" is always nought and a screen waiting on it would never
 sleep. What counts is something *happening*: a new route id or try, a touch, a
-page change, a theme change, a flight ending, being in setup. A heartbeat
-changes none of those, so it does not wake the panel — the difference between
-news and a keep-alive.
+page change, a theme change, a flight, being in setup. A heartbeat changes none
+of those, so it does not wake the panel — the difference between news and a
+keep-alive.
 
 Two rules earn their keep:
 
-- **A flight never dims**, and the clock restarts at the landing rather than
-  running through it. A bird in the air is the reason the screen exists.
+- **A flight never blanks**, because it is news for as long as it flies. It
+  still does not lift the panel above dim: with nobody at the desk a flight
+  plays on a dim screen, which can be read across a dark room without lighting
+  it.
 - **The setup page never dims.** It is the only thing on the board that says
   which network to join, and a blank one looks like a board that died.
 
-A finger and a frame wake it differently, on purpose. A finger means someone is
-at the desk, so the screen goes to full. A request arriving at a dark screen in
-an empty room wakes it only as far as dim: a 320×240 panel going from black to
-full at 3 a.m. is a flashlight, and the strip has already said what happened.
+A finger and a frame therefore wake it differently. A finger means someone is at
+the desk, so the screen goes to full. A request arriving at a dark screen in an
+empty room wakes it only as far as dim: a 320×240 panel going from black to full
+at 3 a.m. is a flashlight, and the strip has already said what happened.
 
 **A touch on a blank screen is swallowed whole.** It wakes the panel and does
 nothing else — `touching_` stays false, so the release has nothing to finish.

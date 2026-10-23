@@ -566,13 +566,16 @@ const char* Screen::backlightName() const {
 // without becoming a flashlight at 3 a.m. — it wakes only as far as dim, and
 // the strip has already said what happened.
 void Screen::noteActivity(bool fromFrame) {
-  activeAt_ = millis();
-  if (!fromFrame) {
-    wakeLevel_ = Backlight::kOn;
-  } else if (back_ == Backlight::kBlank) {
-    wakeLevel_ = Backlight::kDim;
+  const uint32_t now = millis();
+  if (fromFrame) {
+    newsAt_ = now;
+  } else {
+    // a finger is both: someone is here, and something is happening
+    personAt_ = now;
+    newsAt_ = now;
   }
-  // a level change owes a redraw: the panel was drawing into a dark screen
+  // a level change owes a redraw: the panel may have been drawing into a dark
+  // screen, or may have moved on since the light went out
   if (back_ != Backlight::kOn) painted_ = false;
 }
 
@@ -593,8 +596,9 @@ void Screen::applyBacklight(Backlight b) {
   painted_ = false;
 }
 
-// updateBacklight decides the level. It is asked on every tick, so that the
-// clock is the panel's own and not something main.cpp has to remember.
+// updateBacklight decides the level from the two clocks. It is asked on every
+// tick, so the clock is the panel's own and main.cpp does not have to remember
+// when it last saw anything happen.
 void Screen::updateBacklight(uint32_t now, bool flying) {
   // a serial command owns the level while it lasts, so a blank can be looked at
   // without waiting fifteen minutes for one
@@ -607,28 +611,31 @@ void Screen::updateBacklight(uint32_t now, bool flying) {
   // Being set up never dims. That page is the only thing on the board that says
   // which network to join, and a blank one looks like a board that died.
   if (setup_ != Setup::kOff) {
-    activeAt_ = now;
+    personAt_ = now;
     applyBacklight(Backlight::kOn);
     return;
   }
 
-  // A bird in the air is the whole reason this screen exists. It neither dims
-  // while one is flying nor lets the idle clock run: the clock starts again at
-  // the landing, which is what makes a flight ending count as activity.
-  if (flying) {
-    activeAt_ = now;
-    applyBacklight(wakeLevel_);
-    return;
-  }
+  // A bird in the air is news for as long as it flies, so a flight cannot blank
+  // mid-way. It still does not lift the panel above dim: with nobody at the
+  // desk, a flight plays on a dim screen, which is what can be seen from across
+  // a dark room without lighting it.
+  if (flying) newsAt_ = now;
 
-  const uint32_t idle = now - activeAt_;
-  if (idle >= kBlankAfter) {
-    applyBacklight(Backlight::kBlank);
-  } else if (idle >= kDimAfter) {
-    applyBacklight(Backlight::kDim);
+  const uint32_t personIdle = now - personAt_;
+  const uint32_t newsIdle = now - newsAt_;
+
+  Backlight want;
+  if (personIdle < kDimAfter) {
+    want = Backlight::kOn;      // someone is here
+  } else if (personIdle < kBlankAfter) {
+    want = Backlight::kDim;     // they were, a while ago
+  } else if (newsIdle < kDimAfter) {
+    want = Backlight::kDim;     // nobody here, but something just happened
   } else {
-    applyBacklight(wakeLevel_);
+    want = Backlight::kBlank;
   }
+  applyBacklight(want);
 }
 
 bool Screen::begin() {
