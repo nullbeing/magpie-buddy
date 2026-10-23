@@ -1,6 +1,6 @@
 {
   "name": "Magpie Buddy",
-  "version": "0.1.1-5-g5ca7787",
+  "version": "0.1.1-7-g53ac8d7",
   "new_install_prompt_erase": true,
   "builds": [
     {
