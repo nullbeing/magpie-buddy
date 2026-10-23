@@ -148,6 +148,63 @@ led busy 30    # hold one state for 30 s: idle, busy, ok, fail, offline, setup
 scan           # re-read the internal bus, for a body plugged in after boot
 ```
 
+## The backlight
+
+Three levels, and a clock that is the screen's own:
+
+| Level | Brightness | Reached after |
+| --- | --- | --- |
+| on | 128 | activity |
+| dim | 48 | 90 s idle |
+| blank | 0 | 15 min idle |
+
+**The idle clock cannot count frames.** magpie sends a heartbeat every 15 s, so
+"how long since a frame" is always nought and a screen waiting on it would never
+sleep. What counts is something *happening*: a new route id or try, a touch, a
+page change, a theme change, a flight ending, being in setup. A heartbeat
+changes none of those, so it does not wake the panel — the difference between
+news and a keep-alive.
+
+Two rules earn their keep:
+
+- **A flight never dims**, and the clock restarts at the landing rather than
+  running through it. A bird in the air is the reason the screen exists.
+- **The setup page never dims.** It is the only thing on the board that says
+  which network to join, and a blank one looks like a board that died.
+
+A finger and a frame wake it differently, on purpose. A finger means someone is
+at the desk, so the screen goes to full. A request arriving at a dark screen in
+an empty room wakes it only as far as dim: a 320×240 panel going from black to
+full at 3 a.m. is a flashlight, and the strip has already said what happened.
+
+**A touch on a blank screen is swallowed whole.** It wakes the panel and does
+nothing else — `touching_` stays false, so the release has nothing to finish.
+Otherwise reaching over to light the screen would also flip a page. The same
+finger is barred from the three-second hold that opens setup (`wokeGesture()`),
+because the alternative is reconfiguring the board by accident in the dark.
+
+While blank, `tick()` still advances the flight and returns before painting.
+The bird is driven by `millis()`, so skipping the clock would make it teleport
+on waking; leaving `painted_` false is what makes the waking frame redraw
+everything rather than show the buffer as it was when the light went out.
+
+The strip goes dark with the panel — a strip still breathing is the one thing
+left lighting the room — but a landing still flashes it. With the glass off that
+flash is the only thing left that can say a request happened.
+
+`GET /health` reports `"screen":"on|dim|blank"`: a blank screen and a hung
+board look identical from here otherwise, and that is the first question a dark
+display raises. Three serial commands exist for the same reason — waiting
+fifteen minutes to see whether a screen blanks is not a test anyone runs twice:
+
+```
+blank | dim | wake    # hold that level for 60 s
+```
+
+There is no deep sleep. The board is on mains power, ESP32-S3 cannot be woken
+over Wi-Fi, and a wake is a full reboot through a 20-second join — so sleeping
+would buy nothing and cost the only thing the display is for.
+
 ## What a frame does not say
 
 A display sits in a room other people walk through, so a frame names providers,

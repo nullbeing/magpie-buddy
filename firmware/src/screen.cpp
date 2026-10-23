@@ -144,6 +144,14 @@ Palette gPal = kPaletteDark;
 #define kOk (gPal.ok)
 #define kPartColor (gPal.part)
 // A hue picked against a dark ground has to be taken down to sit on white.
+// The backlight's three levels, and the two waits that reach them. Dim is
+// enough to read across a desk at night; blank is off.
+constexpr int kBrightFull = 128;
+constexpr int kBrightDim = 48;
+constexpr int kBrightOff = 0;
+constexpr uint32_t kDimAfter = 90000;    // 90 s of nothing happening
+constexpr uint32_t kBlankAfter = 900000; // 15 min
+
 const char* const kPartName[kPartCount] = {"system", "tools", "memory",
                                            "files", "results", "chat"};
 
@@ -536,12 +544,99 @@ const Icon* markOf(const Route& r) {
 // second table that could drift from the page's.
 uint16_t Screen::routeHue() const { return f_.hasRoute ? hueOf(f_.route.agent) : 0; }
 
+// ------------------------------------------------------------------ backlight
+
+const char* Screen::backlightName() const {
+  switch (back_) {
+    case Backlight::kDim:
+      return "dim";
+    case Backlight::kBlank:
+      return "blank";
+    case Backlight::kOn:
+    default:
+      return "on";
+  }
+}
+
+// noteActivity restarts the idle clock.
+//
+// fromFrame is the difference between something happening and someone being
+// here. A finger means a person at the desk, so the screen goes to full. A
+// request arriving while nobody is looking means the panel has to say so
+// without becoming a flashlight at 3 a.m. — it wakes only as far as dim, and
+// the strip has already said what happened.
+void Screen::noteActivity(bool fromFrame) {
+  activeAt_ = millis();
+  if (!fromFrame) {
+    wakeLevel_ = Backlight::kOn;
+  } else if (back_ == Backlight::kBlank) {
+    wakeLevel_ = Backlight::kDim;
+  }
+  // a level change owes a redraw: the panel was drawing into a dark screen
+  if (back_ != Backlight::kOn) painted_ = false;
+}
+
+void Screen::holdBacklight(Backlight b, uint32_t ms) {
+  held_ = b;
+  backHold_ = millis() + ms;
+  applyBacklight(b);
+}
+
+void Screen::applyBacklight(Backlight b) {
+  if (b == back_) return;
+  back_ = b;
+  M5.Display.setBrightness(b == Backlight::kOn ? kBrightFull
+                           : b == Backlight::kDim ? kBrightDim
+                                                  : kBrightOff);
+  // Coming back from blank has to redraw: the buffer is whatever it was when
+  // the light went out, and the flight may have moved on since.
+  painted_ = false;
+}
+
+// updateBacklight decides the level. It is asked on every tick, so that the
+// clock is the panel's own and not something main.cpp has to remember.
+void Screen::updateBacklight(uint32_t now, bool flying) {
+  // a serial command owns the level while it lasts, so a blank can be looked at
+  // without waiting fifteen minutes for one
+  if (backHold_ && (int32_t)(now - backHold_) < 0) {
+    applyBacklight(held_);
+    return;
+  }
+  backHold_ = 0;
+
+  // Being set up never dims. That page is the only thing on the board that says
+  // which network to join, and a blank one looks like a board that died.
+  if (setup_ != Setup::kOff) {
+    activeAt_ = now;
+    applyBacklight(Backlight::kOn);
+    return;
+  }
+
+  // A bird in the air is the whole reason this screen exists. It neither dims
+  // while one is flying nor lets the idle clock run: the clock starts again at
+  // the landing, which is what makes a flight ending count as activity.
+  if (flying) {
+    activeAt_ = now;
+    applyBacklight(wakeLevel_);
+    return;
+  }
+
+  const uint32_t idle = now - activeAt_;
+  if (idle >= kBlankAfter) {
+    applyBacklight(Backlight::kBlank);
+  } else if (idle >= kDimAfter) {
+    applyBacklight(Backlight::kDim);
+  } else {
+    applyBacklight(wakeLevel_);
+  }
+}
+
 bool Screen::begin() {
   // begin sets the display up. It does not start the board: M5.begin() is
   // called once, in setup(), and calling it again here re-initialises the whole
   // board — USB CDC among it, which drops the device off the bus mid-session.
   M5.Display.setRotation(1);
-  M5.Display.setBrightness(128);
+  M5.Display.setBrightness(kBrightFull);
   M5.Display.fillScreen(kBg);  // and again on a theme change, from setTheme
   stage_.setPsram(true);
   stage_.setColorDepth(16);
@@ -579,6 +674,20 @@ void Screen::showPage(Page p) {
 // ------------------------------------------------------------------- touch
 
 void Screen::touchDown(int x, int y) {
+  // A finger on a blank screen wakes it and does nothing else. The whole
+  // gesture is swallowed — touching_ stays false, so touchUp has nothing to
+  // finish — because reaching over in the dark to light the screen should not
+  // also flip a page. wokeGesture_ is what keeps main.cpp's three-second hold
+  // from opening setup on this same finger.
+  if (back_ == Backlight::kBlank) {
+    wokeGesture_ = true;
+    noteActivity();
+    touching_ = false;
+    return;
+  }
+  wokeGesture_ = false;
+  // A finger is a person at the desk, so dim comes back to full.
+  noteActivity();
   touching_ = true;
   downX_ = x;
   downY_ = y;
@@ -663,6 +772,10 @@ void Screen::set(const Frame& f) {
     legMs_ = f.route.moved ? kFlyShort : kFlyOut;
     faceLeft_ = false;
     bank_ = 0;
+    // A request is news, so it wakes a dark screen — but only to dim. A
+    // heartbeat is not news and does not come through here at all: it changes
+    // neither the route id nor the try, so the screen stays asleep.
+    noteActivity(true);
   }
   painted_ = false;
 }
@@ -756,6 +869,19 @@ void Screen::tick(uint32_t now) {
   // The ring counts as still flying: it is drawn after step_ goes idle, so the
   // page has to keep redrawing until it has faded out.
   const bool flying = step_ != Step::kIdle || (rippleAt_ && now - rippleAt_ < kRippleMs);
+
+  // The backlight's clock runs here, after the flight has advanced: the panel's
+  // level is the screen's own business and main.cpp should not have to remember
+  // when it last saw something happen.
+  updateBacklight(now, flying);
+  if (back_ == Backlight::kBlank) {
+    // Nothing to paint at, but the flight has still moved on. Leaving painted_
+    // false is what makes the waking frame draw everything: a buffer left as it
+    // was would come back with the bird where it was when the light went out.
+    painted_ = false;
+    return;
+  }
+
   const bool moving = touching_ || animating_ || offset_ != 0.0f;
   if (painted_ && !flying && !moving && f_.seq == drawn_.seq && offline_ == drawnOffline_) return;
 

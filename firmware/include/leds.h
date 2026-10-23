@@ -25,6 +25,7 @@ namespace magpie {
 
 // Led is what the strip is saying.
 enum class Led : uint8_t {
+  kDark,     // the screen is blank: off, unless something happens
   kIdle,     // nothing new: a slow, dim breath
   kBusy,     // a request is out: the agent's hue, breathing faster
   kOk,       // an answer landed

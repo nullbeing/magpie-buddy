@@ -98,6 +98,35 @@ class Screen {
   // drawn rather than a shape filled in with a guess.
   void setBattery(int level, bool charging);
 
+  // The backlight, as the three levels it actually has.
+  //
+  // Dim and blank are the screen's own call, counted from the last thing that
+  // happened rather than from the last frame: magpie sends a heartbeat every
+  // 15 s, so "how long since a frame" is always nought and a screen waiting on
+  // it would never sleep. A new route, a touch, a page change and a flight
+  // ending are what count; a heartbeat is not.
+  enum class Backlight : uint8_t { kOn, kDim, kBlank };
+  Backlight backlight() const { return back_; }
+  const char* backlightName() const;
+
+  // noteActivity restarts the idle clock. fromFrame is how a frame differs from
+  // a finger: a finger wants the screen at full, while a request arriving at a
+  // dark screen wants it only just visible — a 320x240 panel going from black
+  // to full at 3 a.m. is a flashlight, and the strip has already said something
+  // happened.
+  void noteActivity(bool fromFrame = false);
+
+  // wokeGesture is true while the finger that woke a blank screen is still
+  // down. main.cpp asks it before treating that same finger as the three-second
+  // hold that opens setup: without it, reaching over to light the screen would
+  // put the board into setup instead.
+  bool wokeGesture() const { return wokeGesture_; }
+
+  // holdBacklight pins a level for the serial commands, for as long as it is
+  // asked to. A blank screen that takes 15 minutes to arrive is not something
+  // that can be tested by hand.
+  void holdBacklight(Backlight b, uint32_t ms);
+
   void setTheme(bool dark);
 
   // What the strip needs, read off the same state the page draws: whether a
@@ -130,6 +159,11 @@ class Screen {
   // drawSlide pushes the two pages at their offsets, the one leaving and the
   // one arriving.
   void drawSlide(uint32_t now);
+
+  // The backlight's own clock: updateBacklight decides the level from what last
+  // happened, and applyBacklight writes it and marks the panel for a redraw.
+  void updateBacklight(uint32_t now, bool flying);
+  void applyBacklight(Backlight b);
 
   // pose puts the dot (and the bird carrying it) at e of the way along a leg,
   // heading the way it flies: the preview's pose(), and the page's.
@@ -194,6 +228,14 @@ class Screen {
   bool charging_ = false;
   bool dark_ = true;         // the theme on the glass
   bool themeDirty_ = false;  // a tap changed it, and the caller should save it
+
+  // the backlight's own clock
+  Backlight back_ = Backlight::kOn;
+  Backlight wakeLevel_ = Backlight::kOn;  // what "recently active" looks like
+  uint32_t activeAt_ = 0;    // the last thing that counted as activity
+  uint32_t backHold_ = 0;    // until this, a serial command owns the level
+  Backlight held_ = Backlight::kOn;
+  bool wokeGesture_ = false;
 };
 
 }  // namespace magpie

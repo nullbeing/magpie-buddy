@@ -143,6 +143,12 @@ void handleHealth() {
     out += hex;
   }
   out += "\",\"i2c\":\"" + String(magpie::leds.bus()) + "\"";
+  // The panel's own level. A blank screen and a hung board look identical from
+  // here otherwise, and "is it asleep or is it dead" is the first question a
+  // dark display raises.
+  out += ",\"screen\":\"";
+  out += screen.backlightName();
+  out += "\"";
   out += "}";
   http.send(200, "application/json", out);
 }
@@ -251,6 +257,12 @@ void updateLeds(uint32_t now, bool down) {
   static int64_t announced = 0;
   static int announcedTry = 0;
 
+  // A blank screen takes the strip with it: the panel went dark because nobody
+  // is here, and a strip still breathing is the one thing left lighting the
+  // room. What it does not silence is news — a request landing still flashes,
+  // because with the glass off that flash is the only thing left to say so.
+  const bool dark = screen.backlight() == magpie::Screen::Backlight::kBlank;
+
   if ((int32_t)(now - ledHoldUntil) < 0) {
     magpie::leds.set(ledHoldState, screen.routeHue());
   } else if (gProvisioning) {
@@ -267,6 +279,8 @@ void updateLeds(uint32_t now, bool down) {
       announced = f.route.id;
       announcedTry = f.route.try_;
       magpie::leds.set(f.route.fail ? magpie::Led::kFail : magpie::Led::kOk, 0);
+    } else if (dark) {
+      magpie::leds.set(magpie::Led::kDark, 0);
     } else {
       magpie::leds.set(magpie::Led::kIdle, 0);
     }
@@ -376,7 +390,9 @@ void loop() {
   // when I first saw a finger" instead, so a touch that arrived while loop()
   // was blocked — during the join at boot — measured against a stale start and
   // wiped the network on a single tap.
-  if (M5.Touch.getDetail(0).wasHold()) {
+  // A finger that woke a blank screen does not also get to open setup: reaching
+  // over in the dark to light the display should not reconfigure the board.
+  if (M5.Touch.getDetail(0).wasHold() && !screen.wokeGesture()) {
     // Asking for setup, not forgetting: the network stays saved, so the page
     // can be looked at and left again. Only the serial `forget` throws it away.
     provision::requestSetup();
@@ -401,6 +417,15 @@ void loop() {
           ESP.restart();
         }
         if (len && !strcmp(line, "status")) provision::dump();
+        // blank / dim / wake: the backlight, held. Waiting fifteen minutes to
+        // see whether a screen blanks is not a test anyone runs twice.
+        if (len && (!strcmp(line, "blank") || !strcmp(line, "dim") || !strcmp(line, "wake"))) {
+          const magpie::Screen::Backlight b = line[0] == 'b' ? magpie::Screen::Backlight::kBlank
+                                            : line[0] == 'd' ? magpie::Screen::Backlight::kDim
+                                                             : magpie::Screen::Backlight::kOn;
+          screen.holdBacklight(b, 60000);
+          Serial.printf("screen: %s for 60 s\n", screen.backlightName());
+        }
         // scan: re-read the internal bus. The list is taken at boot, so this is
         // how a board that was plugged into a body after boot is looked at.
         if (len && !strcmp(line, "scan")) {

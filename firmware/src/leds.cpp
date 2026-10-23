@@ -198,6 +198,10 @@ uint32_t Leds::periodOf() const {
       return 6000;
     case Led::kSetup:
       return 2000;
+    case Led::kDark:
+      // a dark strip has no breath of its own; the period only matters when a
+      // one-shot effect is playing over it
+      return 4000;
     case Led::kIdle:
     default:
       return 4000;
@@ -226,6 +230,10 @@ int Leds::levelOf(uint32_t now) const {
       return 30 + breath(t, periodOf()) * 150 / 255;
     case Led::kOffline:
       return 2 + breath(t, periodOf()) * 32 / 255;
+    case Led::kDark:
+      // Off, not a faint breath: the screen is blank because nobody is here,
+      // and a strip still glowing is the one thing left lighting the room.
+      return 0;
     case Led::kIdle:
     default:
       return 6 + breath(t, periodOf()) * 74 / 255;
@@ -259,6 +267,8 @@ uint16_t Leds::colorOf() const {
     case Led::kBusy:
       // the agent's own hue, and a neutral if a frame named none
       return hue_ ? hue_ : 0xFFFF;
+    case Led::kDark:
+      return 0x0000;
     case Led::kIdle:
     default:
       return 0xFFFF;
@@ -299,6 +309,8 @@ const char* Leds::stateName() const {
       return "offline";
     case Led::kSetup:
       return "setup";
+    case Led::kDark:
+      return "dark";
     case Led::kIdle:
     default:
       return "idle";
