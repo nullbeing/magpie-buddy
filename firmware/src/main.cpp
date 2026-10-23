@@ -32,6 +32,7 @@
 #define HOSTNAME "magpie-desk"
 #endif
 
+#include "leds.h"
 #include "magpie.h"
 #include "provision.h"
 #include "screen.h"
@@ -123,6 +124,14 @@ void handleHealth() {
   out += ",\"uptime\":" + String(millis() / 1000);
   out += ",\"rssi\":" + String(WiFi.RSSI());
   out += ",\"magpie\":\"" + magpieName + "\"";
+  // Whether this board has a strip at all, and what it is saying. A bare CoreS3
+  // and a StackChan answer the same /health otherwise, and a light that cannot
+  // be seen from here has to be readable from here instead.
+  out += ",\"strip\":";
+  out += magpie::leds.present() ? "true" : "false";
+  out += ",\"led\":\"";
+  out += magpie::leds.present() ? magpie::leds.stateName() : "none";
+  out += "\"";
   out += "}";
   http.send(200, "application/json", out);
 }
@@ -193,6 +202,39 @@ void saveTheme() {
   Serial.printf("theme: %s (saved)\n", screen.darkTheme() ? "dark" : "light");
 }
 
+// The strip says what the page draws, in the same order of precedence: a board
+// with no network is telling you that, whatever the last frame said.
+//
+// A landing and a failure are said once per route, not once per loop. The flash
+// decays and the strip goes back to idle; without this the next pass would see
+// route.done still true and start the flash again, so a finished request would
+// blink for ever. Which route was announced is kept here because that is the
+// caller's own knowledge — the screen treats a flight as over, not as news.
+void updateLeds(uint32_t now, bool down) {
+  static int64_t announced = 0;
+  static int announcedTry = 0;
+
+  if (gProvisioning) {
+    magpie::leds.set(magpie::Led::kSetup, 0);
+  } else if (down) {
+    magpie::leds.set(magpie::Led::kOffline, 0);
+  } else if (screen.flying()) {
+    magpie::leds.set(magpie::Led::kBusy, screen.routeHue());
+  } else {
+    const magpie::Frame& f = screen.frame();
+    const bool fresh = f.hasRoute && f.route.done &&
+                       (f.route.id != announced || f.route.try_ != announcedTry);
+    if (fresh) {
+      announced = f.route.id;
+      announcedTry = f.route.try_;
+      magpie::leds.set(f.route.fail ? magpie::Led::kFail : magpie::Led::kOk, 0);
+    } else {
+      magpie::leds.set(magpie::Led::kIdle, 0);
+    }
+  }
+  magpie::leds.tick(now);
+}
+
 }  // namespace
 
 void setup() {
@@ -207,6 +249,11 @@ void setup() {
   // cannot be mistaken for a hold.
   M5.Touch.setHoldThresh(3000);
   loadTheme();
+
+  // The strip, if this board has one. A bare CoreS3 has no expander at 0x6F and
+  // begin() says so; there is nothing else to do about a board without one.
+  const bool strip = magpie::leds.begin();
+  Serial.printf("strip: %s\n", strip ? "twelve lights on the IO expander" : "none on this board");
 
   // No network saved: the board has to be told one, so it raises its own access
   // point and waits for a phone. This is the one step that used to need a
@@ -223,6 +270,9 @@ void setup() {
     screen.setup(provision::apName(), WiFi.softAPIP().toString().c_str(), saved);
     gProvisioning = true;
     gSetupCanLeave = saved;
+    // The strip says the access point is up before the panel has finished
+    // drawing: a board on a shelf is looked at, not read.
+    magpie::leds.set(magpie::Led::kSetup, 0);
     Serial.println("setup: waiting for a network from the portal");
     return;
   }
@@ -356,6 +406,7 @@ void loop() {
       ESP.restart();
     }
     screen.tick(millis());
+    updateLeds(millis(), false);
     // Said once: a page that draws and a page that does not look identical from
     // outside the board, and this one was not being drawn at all for a while.
     static bool saidDrawn = false;
@@ -456,5 +507,9 @@ void loop() {
 
   saveTheme();
   screen.tick(now);
+  // The strip last, after screen.tick has advanced the flight: the light then
+  // says what the page has just been drawn showing, not what it showed a frame
+  // ago.
+  updateLeds(now, down);
   delay(2);
 }

@@ -518,6 +518,11 @@ float easeOut(float t) {
 
 }  // namespace
 
+// routeHue is the agent's colour, as the strip can take it. hueOf lives in this
+// file's anonymous namespace, so the light asks the screen rather than keeping a
+// second table that could drift from the page's.
+uint16_t Screen::routeHue() const { return f_.hasRoute ? hueOf(f_.route.agent) : 0; }
+
 bool Screen::begin() {
   // begin sets the display up. It does not start the board: M5.begin() is
   // called once, in setup(), and calling it again here re-initialises the whole

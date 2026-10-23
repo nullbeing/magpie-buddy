@@ -99,6 +99,15 @@ class Screen {
   void setBattery(int level, bool charging);
 
   void setTheme(bool dark);
+
+  // What the strip needs, read off the same state the page draws: whether a
+  // flight is out, whether the panel is in setup, and the agent's own hue. The
+  // renderer never calls these, and a light must not guess at what the page
+  // knows.
+  bool flying() const { return step_ != Step::kIdle; }
+  bool inSetup() const { return setup_ != Setup::kOff; }
+  uint16_t routeHue() const;
+
   bool darkTheme() const { return dark_; }
   bool themeDirty() const { return themeDirty_; }
   void clearThemeDirty() { themeDirty_ = false; }

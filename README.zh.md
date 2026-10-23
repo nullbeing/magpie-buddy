@@ -8,6 +8,8 @@
 
 **硬件：** M5Stack CoreS3（ESP32-S3，320×240，8 MB PSRAM，Wi-Fi）。
 
+装在 [StackChan](https://docs.m5stack.com/zh_CN/stackchan) 机身上时，头部的十二颗 RGB 灯跟着同样的状态走：请求在路上时用 agent 自己的色相呼吸，应答落地变薄荷绿，某次尝试失败变红。裸 CoreS3 没有这组灯，固件直接说明这一点，不需要任何配置。
+
 ## 跑起来
 
 **1. 桥接** —— 在跑 magpie 的那台机器上：

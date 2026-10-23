@@ -84,6 +84,53 @@ The bird is magpie's own shape, and its wings beat with the window's own
 Chrome and bakes them as 4-bit alpha masks, so the board is not a second
 interpretation of the drawing that could drift from it.
 
+## The strip
+
+On a StackChan body the twelve WS2812Cs under the head say the same thing the
+flight draws, off the glass. They are **not** on an ESP32 GPIO: the data line is
+`PY32IO_EXP IO14`, driven by the PY32L020 IO expander at I2C `0x6F`. So
+`Adafruit_NeoPixel`, FastLED and the RMT peripheral cannot reach them — a strip
+driver pointed at a pin would drive nothing. The expander holds a 32-entry buffer
+of RGB565 values (`0x30 + index*2`, low byte first) and shifts it into the chain
+when bit 6 of `0x24` is written; the low six bits of that register are how many
+lights there are.
+
+`firmware/src/leds.cpp` writes that buffer in one 24-byte burst, 25 times a
+second. A breath measured in seconds needs no more, and the bus is shared with
+the PMIC and the touch panel. Nothing is written when the rounded colour is what
+is already on the chain.
+
+| State | Colour | Motion |
+| --- | --- | --- |
+| busy | the agent's own hue | 1.5 s breath |
+| ok | mint | one 2.4 s fade from full |
+| fail | red | two quick blinks, then dark |
+| idle | white, very dim | 4 s breath |
+| offline | amber, barely there | 6 s breath |
+| setup | mint | 2 s breath, never fully dark |
+
+A landing and a failure are **one-shot**: they decay to black and the strip
+rests at idle. Which route was announced is remembered by the caller
+(`updateLeds` in `main.cpp`), because `route.done` stays true for as long as
+that frame is the newest one — without that the finished request would blink for
+ever.
+
+Two details that are easy to get wrong, both taken from the BSP rather than
+guessed at:
+
+- **Read-modify-write, never a blind store.** Pin 0 of this expander is `VM_EN`,
+the servo rail's switch. Writing `GPIO_M_L = 0` to make pin 13 an output would
+turn pin 0 back into an input, drop the rail, and let StackChan's head go limp.
+Only pin 13's bits are touched.
+- **Push-pull.** The expander defaults to open drain and there is no pull-up on
+the net to drive the chain high.
+
+A bare CoreS3 has no expander at `0x6F`, and `begin()` reads the version register
+to find that out: `0` or `0xFF` means nothing answered, and the strip is then a
+no-op for the whole run. `GET /health` reports it — `"strip":false,
+"led":"none"` — because a light that cannot be seen from here has to be
+readable from here instead.
+
 ## What a frame does not say
 
 A display sits in a room other people walk through, so a frame names providers,

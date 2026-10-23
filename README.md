@@ -10,6 +10,11 @@ allowance. When a request goes out, a magpie flies along the route.
 
 **Hardware:** M5Stack CoreS3 (ESP32-S3, 320×240, 8 MB PSRAM, Wi-Fi).
 
+On a [StackChan](https://docs.m5stack.com/en/stackchan) body the twelve RGB
+lights under the head follow the same states: the agent's hue breathing while a
+request is out, mint when an answer lands, red when a try fails. A bare CoreS3
+has no such lights and the firmware simply says so — nothing to configure.
+
 ## Run it
 
 **1. The bridge** — on the machine running magpie:
