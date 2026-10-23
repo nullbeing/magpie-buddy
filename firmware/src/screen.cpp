@@ -617,10 +617,13 @@ void Screen::touchUp(int x, int y) {
       setTheme(!gPal.isDark);
       return;
     }
-    showPage(static_cast<Page>(clampi(x / kTabW, 0, 3)));
+    showPage(static_cast<Page>(clampi(x / kTabW, 0, static_cast<int>(Page::kCount) - 1)));
     return;
   }
-  showPage(static_cast<Page>((static_cast<int>(page_) + 1) % 3));
+  // kCount, not 3: the tap steps through every page there is. A literal 3 here
+  // kept working when Limits was added and quietly left it out, so tapping the
+  // page body cycled Route, Context, Usage and back.
+  showPage(static_cast<Page>((static_cast<int>(page_) + 1) % static_cast<int>(Page::kCount)));
 }
 
 // -------------------------------------------------------------------- tick
@@ -858,8 +861,14 @@ void Screen::paintTabs(M5Canvas& g) {
   // drawn in the strip's own coordinates: y 0 is the panel's kTabY
   g.fillRect(0, 0, 320, kTabH, kBg);
   g.fillRect(0, 0, 320, 1, kHairline);
-  static const char* const kNames[4] = {"Route", "Context", "Usage", "Limits"};
-  for (int i = 0; i < 4; i++) {
+  static const char* const kNames[] = {"Route", "Context", "Usage", "Limits"};
+  // A page added without a name here would leave a tab that draws nothing, and
+  // the last time a page count was written by hand it left `Limits` out of the
+  // tap cycle for a while. This makes that a build error instead.
+  static_assert(sizeof kNames / sizeof kNames[0] == static_cast<size_t>(Page::kCount),
+                "每加一页，这里的名字也要加一个");
+  constexpr int kPages = static_cast<int>(sizeof kNames / sizeof kNames[0]);
+  for (int i = 0; i < kPages; i++) {
     const bool on = static_cast<int>(page_) == i;
     const int cx = kTabW * i + kTabW / 2;
     ui::draw(g, UI_14, kNames[i], cx, 22, on ? kFg : kFg3, ui::kCenter);
