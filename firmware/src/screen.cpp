@@ -516,6 +516,19 @@ float easeOut(float t) {
   return 1 - u * u * u;
 }
 
+// The seat's mark. The provider's own where there is one; where there is not,
+// the model's maker — because a reseller has no mark baked here and the card
+// already spells its name out in words underneath.
+//
+// This is what made "a deepseek model on workbuddy-ai" draw no icon at all:
+// iconFor matches the provider id, "workbuddy-ai" contains no "deepseek", and
+// the only thing that did was the model. The name under the mark says
+// "workbuddy-ai"; the mark is the one place that can say which family answered.
+const Icon* markOf(const Route& r) {
+  if (const Icon* own = iconFor(r.provider)) return own;
+  return iconFor(r.model);
+}
+
 }  // namespace
 
 // routeHue is the agent's colour, as the strip can take it. hueOf lives in this
@@ -1029,7 +1042,7 @@ void Screen::paintRoute(M5Canvas& g, uint32_t now) {
   // the page's own colour; a provider with no mark draws no icon at all, and
   // its name keeps the full width and the larger face.
   const char* prov = f_.hasRoute ? r.provider : "--";
-  const Icon* mark = f_.hasRoute ? iconFor(r.provider) : nullptr;
+  const Icon* mark = f_.hasRoute ? markOf(r) : nullptr;
   int tailY = kSeat.y + 2;
   if (mark) {
     blend(g, mark->alpha, mark->w, mark->h, kSeat.x - mark->w / 2, kSeat.y - 22, kFg);
