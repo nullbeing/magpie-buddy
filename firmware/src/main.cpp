@@ -132,6 +132,17 @@ void handleHealth() {
   out += ",\"led\":\"";
   out += magpie::leds.present() ? magpie::leds.stateName() : "none";
   out += "\"";
+  // Where the expander answered, and what else is on the internal bus. A strip
+  // that stays dark is first a question of whether the chip is there: this is
+  // the answer, without a photograph of the board. The scan was taken at boot —
+  // doing it here would block the loop for ~50 ms on every poll.
+  out += ",\"addr\":\"0x";
+  {
+    char hex[8];
+    snprintf(hex, sizeof hex, "%02X", magpie::leds.address());
+    out += hex;
+  }
+  out += "\",\"i2c\":\"" + String(magpie::leds.bus()) + "\"";
   out += "}";
   http.send(200, "application/json", out);
 }
@@ -210,11 +221,39 @@ void saveTheme() {
 // route.done still true and start the flash again, so a finished request would
 // blink for ever. Which route was announced is kept here because that is the
 // caller's own knowledge — the screen treats a flight as over, not as news.
+//
+// A state held from the serial `led` command wins until it expires: the effects
+// are otherwise only visible when a real request happens to arrive, which is no
+// way to look at a colour.
+uint32_t ledHoldUntil = 0;
+magpie::Led ledHoldState = magpie::Led::kIdle;
+
+bool ledByName(const char* name, magpie::Led* out) {
+  struct Pair {
+    const char* name;
+    magpie::Led led;
+  };
+  static const Pair kPairs[] = {
+      {"idle", magpie::Led::kIdle},   {"busy", magpie::Led::kBusy},
+      {"ok", magpie::Led::kOk},       {"fail", magpie::Led::kFail},
+      {"offline", magpie::Led::kOffline}, {"setup", magpie::Led::kSetup},
+  };
+  for (const Pair& p : kPairs) {
+    if (!strcmp(p.name, name)) {
+      *out = p.led;
+      return true;
+    }
+  }
+  return false;
+}
+
 void updateLeds(uint32_t now, bool down) {
   static int64_t announced = 0;
   static int announcedTry = 0;
 
-  if (gProvisioning) {
+  if ((int32_t)(now - ledHoldUntil) < 0) {
+    magpie::leds.set(ledHoldState, screen.routeHue());
+  } else if (gProvisioning) {
     magpie::leds.set(magpie::Led::kSetup, 0);
   } else if (down) {
     magpie::leds.set(magpie::Led::kOffline, 0);
@@ -253,7 +292,9 @@ void setup() {
   // The strip, if this board has one. A bare CoreS3 has no expander at 0x6F and
   // begin() says so; there is nothing else to do about a board without one.
   const bool strip = magpie::leds.begin();
+  magpie::leds.scan();
   Serial.printf("strip: %s\n", strip ? "twelve lights on the IO expander" : "none on this board");
+  Serial.printf("i2c: %s\n", magpie::leds.bus());
 
   // No network saved: the board has to be told one, so it raises its own access
   // point and waits for a phone. This is the one step that used to need a
@@ -360,6 +401,34 @@ void loop() {
           ESP.restart();
         }
         if (len && !strcmp(line, "status")) provision::dump();
+        // scan: re-read the internal bus. The list is taken at boot, so this is
+        // how a board that was plugged into a body after boot is looked at.
+        if (len && !strcmp(line, "scan")) {
+          magpie::leds.scan();
+          Serial.printf("i2c: %s (expander at 0x%02X)\n", magpie::leds.bus(), magpie::leds.address());
+        }
+        // led <idle|busy|ok|fail|offline|setup> [seconds]: hold the strip in one
+        // state, so each colour can be looked at without waiting for a request
+        // that happens to fail. Ten seconds by default.
+        if (len >= 4 && !strncmp(line, "led ", 4)) {
+          char* sp = strchr(line + 4, ' ');
+          int secs = 10;
+          if (sp) {
+            *sp = 0;
+            secs = atoi(sp + 1);
+            if (secs <= 0 || secs > 120) secs = 10;
+          }
+          magpie::Led want;
+          if (!magpie::leds.present()) {
+            Serial.println("led: no strip on this board");
+          } else if (!ledByName(line + 4, &want)) {
+            Serial.println("usage: led <idle|busy|ok|fail|offline|setup> [seconds]");
+          } else {
+            ledHoldState = want;
+            ledHoldUntil = millis() + uint32_t(secs) * 1000;
+            Serial.printf("led: %s for %d s\n", line + 4, secs);
+          }
+        }
         // setup: what the three-second hold does, without a finger. It is the
         // same call, so it is how that path is tested.
         if (len && !strcmp(line, "setup")) {

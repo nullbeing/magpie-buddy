@@ -115,9 +115,15 @@ rests at idle. Which route was announced is remembered by the caller
 that frame is the newest one — without that the finished request would blink for
 ever.
 
-Two details that are easy to get wrong, both taken from the BSP rather than
+Three details that are easy to get wrong, all taken from the BSP rather than
 guessed at:
 
+- **Talk to it at 100 kHz.** The part boots at 100 kHz and does not answer a
+400 kHz probe until its own `I2C_CFG` has been written to say it should. A
+400 kHz read comes back empty from a chip that is perfectly present, which is
+not a subtle failure: it made a StackChan on a desk report `"strip":false` and
+look like a bare CoreS3. The bus stays at 100 kHz here — the 24-byte burst is
+under 3 ms and the strip is not worth a mode switch.
 - **Read-modify-write, never a blind store.** Pin 0 of this expander is `VM_EN`,
 the servo rail's switch. Writing `GPIO_M_L = 0` to make pin 13 an output would
 turn pin 0 back into an input, drop the rail, and let StackChan's head go limp.
@@ -125,11 +131,22 @@ Only pin 13's bits are touched.
 - **Push-pull.** The expander defaults to open drain and there is no pull-up on
 the net to drive the chain high.
 
-A bare CoreS3 has no expander at `0x6F`, and `begin()` reads the version register
-to find that out: `0` or `0xFF` means nothing answered, and the strip is then a
-no-op for the whole run. `GET /health` reports it — `"strip":false,
-"led":"none"` — because a light that cannot be seen from here has to be
-readable from here instead.
+`begin()` tries both strap addresses (`0x6F`, `0x71`) and reads the version
+register: `0` or `0xFF` means nothing answered. On a bare CoreS3 that is the
+whole story and the strip is a no-op for the run. `GET /health` says which it
+was — `"strip":true,"addr":"0x6F"` — along with a cached bus scan
+(`"i2c":"0x21,0x23,0x34,…,0x6F"`), because a light that cannot be seen from
+here has to be readable from here instead. The scan is taken at boot, not per
+request: 112 probe cycles at 100 kHz is about 50 ms of blocked `loop()`, and
+`/health` is the endpoint most likely to be polled.
+
+Two serial commands exist for the same reason — a colour that only appears when
+a real request happens to fail is not something that can be looked at:
+
+```
+led busy 30    # hold one state for 30 s: idle, busy, ok, fail, offline, setup
+scan           # re-read the internal bus, for a body plugged in after boot
+```
 
 ## What a frame does not say
 

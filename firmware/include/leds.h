@@ -18,6 +18,7 @@
 // across the room.
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace magpie {
@@ -39,6 +40,22 @@ class Leds {
   bool begin();
   bool present() const { return ok_; }
 
+  // address is where the expander answered, 0 when there is none. A strip that
+  // does not light up is first a question of whether the chip is there at all.
+  uint8_t address() const { return addr_; }
+
+  // bus is what answered on the internal bus when begin() last scanned it, as
+  // "0x34,0x58,...". Cached rather than scanned per call: a hundred and twelve
+  // probe-and-read cycles at 100 kHz is about 50 ms of blocked loop(), which on
+  // a page that is animating is a visible stutter — and /health is the endpoint
+  // most likely to be polled.
+  const char* bus() const { return bus_; }
+
+  // scan re-reads the bus into bus(). The diagnostic behind /health and the
+  // serial `scan` command: whether the expander is on the bus cannot be settled
+  // from here otherwise.
+  int scan();
+
   // set is what to say, and the hue to say kBusy in (RGB565). A state change
   // restarts the breath, so the light always starts from dark and rises.
   void set(Led s, uint16_t hue565);
@@ -58,8 +75,13 @@ class Leds {
   uint32_t periodOf() const;
   int levelOf(uint32_t now) const;
   uint16_t colorOf() const;
+  // oneShotMs is how long a one-shot effect lasts, 0 for the states that
+  // breathe. levelOf fades over the same number.
+  uint32_t oneShotMs() const;
 
   bool ok_ = false;
+  uint8_t addr_ = 0;
+  char bus_[96] = {0};
   Led state_ = Led::kIdle;
   uint32_t stateAt_ = 0;
   uint32_t lastWrite_ = 0;
