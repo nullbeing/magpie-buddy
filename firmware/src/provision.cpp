@@ -49,6 +49,7 @@ WebServer portal(kPortalPort);
 
 bool started = false;
 bool saved = false;         // a network was just written; the board is leaving
+bool forgottenNow = false;  // the page just dropped one; main.cpp redraws
 uint32_t savedAt = 0;
 char apNameBuf[32] = {0};
 
@@ -117,6 +118,34 @@ void handleSave() {
   portal.send(200, "text/plain", "saved");
   saved = true;
   savedAt = millis();
+}
+
+// handleState is what the page asks so it can say which network is stored, and
+// offer to drop it. The name only: the password is never sent anywhere, and the
+// page has no business knowing it.
+void handleState() {
+  // hasCredentials() and ssid() each open NVS, so it is asked once rather than
+  // twice: a namespace opened and closed per call is fine at boot and wasteful
+  // on a page that is polled.
+  const bool stored = hasCredentials();
+  JsonDocument doc;
+  doc["saved"] = stored;
+  doc["ssid"] = stored ? ssid() : "";
+  String out;
+  serializeJson(doc, out);
+  portal.sendHeader("Cache-Control", "no-store");
+  portal.send(200, "application/json", out);
+}
+
+// handleForget drops the stored network from the page, so re-provisioning does
+// not need a cable. The board stays up as an access point rather than
+// restarting: it is already where the user needs it, and a reboot would drop
+// the page they are looking at mid-tap.
+void handleForget() {
+  forget();
+  forgottenNow = true;
+  portal.send(200, "text/plain", "forgotten");
+  Serial.println("setup: network forgotten from the page");
 }
 
 }  // namespace
@@ -201,6 +230,12 @@ bool takeSetupRequest() {
   return asked;
 }
 
+bool takeForgotten() {
+  const bool f = forgottenNow;
+  forgottenNow = false;
+  return f;
+}
+
 void forget() {
   Serial.println("setup: forgetting the saved network");
   prefs.begin(kNvs, false);
@@ -244,7 +279,9 @@ void begin() {
 
   portal.on("/", HTTP_GET, sendPage);
   portal.on("/scan", HTTP_GET, handleScan);
+  portal.on("/state", HTTP_GET, handleState);
   portal.on("/save", HTTP_POST, handleSave);
+  portal.on("/forget", HTTP_POST, handleForget);
   portal.onNotFound([]() {
     if (isProbe(portal.uri())) {
       redirectToPage();

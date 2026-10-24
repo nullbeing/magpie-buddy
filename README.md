@@ -44,7 +44,9 @@ on its screen. Join it; the setup page opens by itself (or go to
 saves it to NVS and restarts onto it.
 
 Hold the screen for three seconds to reach that page again. The saved network is
-kept — tap once to go back. Only the serial `forget` throws it away.
+kept — tap once to go back. To change it, open the page and press **Forget**
+under "Current network": the board stays where it is, still an access point,
+so the next network can be picked without a reboot dropping the page mid-tap.
 
 ## The pages
 

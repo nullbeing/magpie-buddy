@@ -37,6 +37,10 @@ bool takeSetupRequest();
 // serial command does this; the gesture does not.
 void forget();
 
+// takeForgotten reports, once, that the network was just dropped from the setup
+// page. The page can forget; only main.cpp knows what to redraw afterwards.
+bool takeForgotten();
+
 // dump prints what NVS holds, without the password itself.
 void dump();
 

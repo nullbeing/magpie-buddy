@@ -492,6 +492,14 @@ void loop() {
     // network was forgotten, so the access point was up and the screen said
     // nothing about it.
     provision::tick();
+    // The page can drop the saved network too, and when it does the panel has to
+    // stop saying "tap anywhere to go back": there is nothing to go back to. The
+    // footer is the only place that says so, and it is drawn from this flag.
+    if (provision::takeForgotten()) {
+      gSetupCanLeave = false;
+      screen.setup(provision::apName(), WiFi.softAPIP().toString().c_str(), false);
+      Serial.println("setup: the page dropped the network, staying here");
+    }
     // A tap leaves the page when there is a saved network behind it. Without
     // one the only way on is a phone, and the footer says so instead.
     if (gSetupCanLeave && M5.Touch.getDetail(0).wasClicked()) {

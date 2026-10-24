@@ -127,6 +127,20 @@ constexpr const char kSetupPage[] = R"HTML(
   }
   button.primary:disabled { opacity: .45; cursor: default; }
 
+  /* The stored network, and the way out of it. A button that throws something
+     away is drawn as text in the danger colour rather than filled, so it is
+     never the thing a thumb lands on by accident. */
+  .cur { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .cur .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .cur button {
+    font: inherit; font-size: 13.5px; font-weight: 600;
+    background: none; border: 1px solid var(--line); border-radius: 9px;
+    color: var(--bad); padding: 8px 13px; cursor: pointer; flex: none;
+  }
+  .cur button:active { background: var(--field); }
+  .cur button:disabled { opacity: .45; cursor: default; }
+  .card.hidden { display: none; }
+
   details summary {
     padding: 14px 16px; cursor: pointer; color: var(--fg2); font-size: 14px;
     list-style: none;
@@ -148,6 +162,16 @@ constexpr const char kSetupPage[] = R"HTML(
     <h1>Magpie Buddy</h1>
     <p>Connect this display to your Wi‑Fi.</p>
   </header>
+
+  <section class="card hidden" id="current">
+    <div class="head">
+      <span>Current network</span>
+    </div>
+    <div class="cur">
+      <span class="name" id="curName">—</span>
+      <button id="forget" type="button">Forget</button>
+    </div>
+  </section>
 
   <section class="card">
     <div class="head">
@@ -247,9 +271,47 @@ async function save(ssid, pass) {
 }
 
 $("#rescan").onclick = scan;
+
+// The stored network. Asked once on load: this page is reached from a phone
+// that has just joined the board, and "which network does it think it is on"
+// is the first thing worth knowing before changing anything.
+async function state() {
+  try {
+    const r = await fetch("/state");
+    const s = await r.json();
+    if (s.saved && s.ssid) {
+      $("#curName").textContent = s.ssid;
+      $("#current").classList.remove("hidden");
+    } else {
+      $("#current").classList.add("hidden");
+    }
+    return s;
+  } catch (e) {
+    return { saved: false };
+  }
+}
+
+// Forgetting keeps the board where it is — still an access point, still serving
+// this page — so the next network can be picked without a reboot dropping the
+// page mid-tap.
+$("#forget").onclick = async () => {
+  const name = $("#curName").textContent;
+  $("#forget").disabled = true;
+  try {
+    const r = await fetch("/forget", { method: "POST" });
+    if (!r.ok) throw new Error(await r.text());
+    $("#current").classList.add("hidden");
+    msg("“" + name + "” forgotten. Pick the network to use instead.", "ok");
+    scan();
+  } catch (e) {
+    msg(String(e.message || e), "err");
+    $("#forget").disabled = false;
+  }
+};
 $("#join").onsubmit = (e) => { e.preventDefault(); if (chosen) save(chosen.ssid, $("#pass").value); };
 $("#manual").onsubmit = (e) => { e.preventDefault(); const s = $("#hssid").value.trim(); if (s) save(s, $("#hpass").value); };
 scan();
+state();
 </script>
 </body>
 </html>
